@@ -247,15 +247,21 @@ pub fn export_play_history(index_path: String) -> Result<Vec<PlayHistoryEntry>, 
 
 /// 播放流水聚合：趋势按日、收听节律按小时、报告按星期×小时。
 /// 日期/小时按本机时区（SQLite localtime）分桶。
-pub fn get_play_history_stats(index_path: String) -> Result<PlayHistoryStats, String> {
+/// `since` 为统计起始时间戳（秒），None 表示不过滤。
+pub fn get_play_history_stats(
+    index_path: String,
+    since: Option<i64>,
+) -> Result<PlayHistoryStats, String> {
     let index_dir = PathBuf::from(index_path);
     let conn = open_connection(&index_dir).map_err(|e| e.to_string())?;
     init_schema(&conn).map_err(|e| e.to_string())?;
+    let since = since.unwrap_or(0).max(0);
 
     let (total, first_at, last_at): (i64, i64, i64) = conn
         .query_row(
-            "SELECT COUNT(*), COALESCE(MIN(played_at), 0), COALESCE(MAX(played_at), 0) FROM play_history",
-            [],
+            "SELECT COUNT(*), COALESCE(MIN(played_at), 0), COALESCE(MAX(played_at), 0) \
+             FROM play_history WHERE played_at >= ?1",
+            params![since],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .map_err(|e| e.to_string())?;
@@ -265,11 +271,11 @@ pub fn get_play_history_stats(index_path: String) -> Result<PlayHistoryStats, St
         let mut stmt = conn
             .prepare(
                 "SELECT date(played_at, 'unixepoch', 'localtime') AS d, COUNT(*) AS c \
-                 FROM play_history GROUP BY d ORDER BY d ASC",
+                 FROM play_history WHERE played_at >= ?1 GROUP BY d ORDER BY d ASC",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(params![since], |row| {
                 Ok(DayCount {
                     day: row.get(0)?,
                     count: row.get(1)?,
@@ -289,11 +295,11 @@ pub fn get_play_history_stats(index_path: String) -> Result<PlayHistoryStats, St
                 "SELECT CAST(strftime('%w', played_at, 'unixepoch', 'localtime') AS INTEGER) AS w, \
                         CAST(strftime('%H', played_at, 'unixepoch', 'localtime') AS INTEGER) AS h, \
                         COUNT(*) AS c \
-                 FROM play_history GROUP BY w, h",
+                 FROM play_history WHERE played_at >= ?1 GROUP BY w, h",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(params![since], |row| {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
             })
             .map_err(|e| e.to_string())?;

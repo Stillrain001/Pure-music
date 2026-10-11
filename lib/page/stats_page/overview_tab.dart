@@ -18,6 +18,7 @@ class OverviewTab extends StatefulWidget {
     required this.albumCount,
     required this.estimatedListen,
     required this.history,
+    this.filtered = false,
   });
 
   final int totalPlays;
@@ -27,6 +28,9 @@ class OverviewTab extends StatefulWidget {
   final int albumCount;
   final int estimatedListen;
   final rust_library_db.PlayHistoryStats? history;
+
+  /// 时间范围过滤后无数据时的提示文案开关。
+  final bool filtered;
 
   @override
   State<OverviewTab> createState() => _OverviewTabState();
@@ -136,7 +140,9 @@ class _OverviewTabState extends State<OverviewTab> {
             statsMessage(
               context,
               icon: Symbols.show_chart,
-              text: '播放几首歌曲后，这里会出现趋势',
+              text: widget.filtered
+                  ? '所选时间段内没有播放记录'
+                  : '播放几首歌曲后，这里会出现趋势',
               height: 172,
             )
           else ...[
@@ -242,7 +248,9 @@ class _OverviewTabState extends State<OverviewTab> {
             statsMessage(
               context,
               icon: Symbols.schedule,
-              text: '播放几首歌曲后，这里会出现节律分布',
+              text: widget.filtered
+                  ? '所选时间段内没有播放记录'
+                  : '播放几首歌曲后，这里会出现节律分布',
               height: 154,
             )
           else ...[

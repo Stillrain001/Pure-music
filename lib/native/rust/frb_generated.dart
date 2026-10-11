@@ -244,6 +244,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<PlayHistoryStats> crateApiLibraryDbPlayCountsGetPlayHistoryStats({
     required String indexPath,
+    PlatformInt64? since,
   });
 
   Future<List<PlayCountEntry>> crateApiLibraryDbPlayCountsGetTopPlayed({
@@ -1597,12 +1598,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<PlayHistoryStats> crateApiLibraryDbPlayCountsGetPlayHistoryStats({
     required String indexPath,
+    PlatformInt64? since,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(indexPath, serializer);
+          sse_encode_opt_box_autoadd_i_64(since, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1615,7 +1618,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiLibraryDbPlayCountsGetPlayHistoryStatsConstMeta,
-        argValues: [indexPath],
+        argValues: [indexPath, since],
         apiImpl: this,
       ),
     );
@@ -1624,7 +1627,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiLibraryDbPlayCountsGetPlayHistoryStatsConstMeta =>
       const TaskConstMeta(
         debugName: 'get_play_history_stats',
-        argNames: ['indexPath'],
+        argNames: ['indexPath', 'since'],
       );
 
   @override
@@ -2833,6 +2836,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_i_64(raw);
+  }
+
+  @protected
   LyricContent dco_decode_box_autoadd_lyric_content(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_lyric_content(raw);
@@ -3090,6 +3099,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
   }
 
   @protected
@@ -3528,6 +3543,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_64(deserializer));
+  }
+
+  @protected
   LyricContent sse_decode_box_autoadd_lyric_content(
     SseDeserializer deserializer,
   ) {
@@ -3869,6 +3890,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_64(deserializer));
     } else {
       return null;
     }
@@ -4412,6 +4444,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_lyric_content(
     LyricContent self,
     SseSerializer serializer,
@@ -4723,6 +4764,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_64(self, serializer);
     }
   }
 

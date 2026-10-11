@@ -8,9 +8,12 @@ import 'package:pure_music/page/stats_page/stats_shared.dart';
 
 /// 报告 tab：收听洞察卡 + 星期热力图 + 每周分布。
 class ReportTab extends StatelessWidget {
-  const ReportTab({super.key, required this.history});
+  const ReportTab({super.key, required this.history, this.filtered = false});
 
   final rust_library_db.PlayHistoryStats? history;
+
+  /// 时间范围过滤后无数据时的提示文案开关。
+  final bool filtered;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +25,7 @@ class ReportTab extends StatelessWidget {
           statsMessage(
             context,
             icon: Symbols.insights,
-            text: '播放几首歌曲后，这里会出现收听报告',
+            text: filtered ? '所选时间段内没有播放记录' : '播放几首歌曲后，这里会出现收听报告',
             height: 280,
           ),
         ],

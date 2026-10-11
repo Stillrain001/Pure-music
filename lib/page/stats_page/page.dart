@@ -34,6 +34,7 @@ class _StatsTab {
 class _StatsPageState extends State<StatsPage> {
   static const _shelfLimit = 12;
   static const _rankedLimit = 100;
+  static const _ranges = [('全部', 0), ('近7天', 7), ('近30天', 30), ('近90天', 90)];
 
   static const _tabs = [
     _StatsTab('概览', Symbols.dashboard),
@@ -43,6 +44,7 @@ class _StatsPageState extends State<StatsPage> {
   ];
 
   int _currentIndex = 0;
+  int _range = 0;
   List<rust_library_db.PlayCountEntry>? _topPlayed;
   rust_library_db.PlayHistoryStats? _history;
   bool _loading = true;
@@ -64,6 +66,20 @@ class _StatsPageState extends State<StatsPage> {
     _loadStats();
   }
 
+  /// 时间范围起点（秒）；全部为 null。
+  int? get _historySince {
+    final days = _ranges[_range].$2;
+    if (days == 0) return null;
+    final since = DateTime.now().subtract(Duration(days: days));
+    return since.millisecondsSinceEpoch ~/ 1000;
+  }
+
+  void _setRange(int index) {
+    if (_range == index) return;
+    setState(() => _range = index);
+    _loadStats();
+  }
+
   Future<void> _loadStats() async {
     final requestToken = ++_loadRequestToken;
     if (!_loading) {
@@ -80,6 +96,7 @@ class _StatsPageState extends State<StatsPage> {
       );
       final history = await rust_library_db.getPlayHistoryStats(
         indexPath: supportPath,
+        since: _historySince,
       );
       final visibleTop = top
           .where(
@@ -145,6 +162,13 @@ class _StatsPageState extends State<StatsPage> {
               return _tabButton(scheme, i, selected, canSwitch);
             }),
           ),
+          if (_currentIndex == 0 || _currentIndex == 3) ...[
+            const SizedBox(height: Spacing.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _rangeSelector(scheme),
+            ),
+          ],
           const SizedBox(height: Spacing.lg),
           Expanded(
             child: DirectionalTabView(
@@ -162,6 +186,7 @@ class _StatsPageState extends State<StatsPage> {
                   albumCount: library.albumCollection.length,
                   estimatedListen: _estimatedListenSeconds(audios, data),
                   history: _history,
+                  filtered: _range != 0,
                 ),
                 ArtistsTab(
                   topArtists: buildTopArtists(
@@ -183,7 +208,7 @@ class _StatsPageState extends State<StatsPage> {
                   loading: _loading,
                   loadFailed: _loadFailed,
                 ),
-                ReportTab(history: _history),
+                ReportTab(history: _history, filtered: _range != 0),
               ],
             ),
           ),
@@ -217,6 +242,52 @@ class _StatsPageState extends State<StatsPage> {
         ),
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
+    );
+  }
+
+  Widget _rangeSelector(ColorScheme scheme) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: AppRadius.xsCircular,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _ranges.length; i++)
+            _rangeButton(i, scheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _rangeButton(int index, ColorScheme scheme) {
+    final selected = _range == index;
+    return InkWell(
+      borderRadius: AppRadius.xsCircular,
+      onTap: () => _setRange(index),
+      child: AnimatedContainer(
+        duration: MotionDuration.fast,
+        curve: MotionCurve.standard,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: selected
+            ? BoxDecoration(
+                color: scheme.secondaryContainer,
+                borderRadius: AppRadius.xsCircular,
+              )
+            : null,
+        child: Text(
+          _ranges[index].$1,
+          style: TextStyle(
+            fontSize: AppType.caption,
+            fontWeight: selected ? AppType.weightSemibold : AppType.weightRegular,
+            color: selected
+                ? scheme.onSecondaryContainer
+                : scheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

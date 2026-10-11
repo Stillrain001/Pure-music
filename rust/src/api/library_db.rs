@@ -2188,7 +2188,7 @@ mod tests {
         }];
         import_play_history(index.clone(), entries, false).unwrap();
 
-        let stats = get_play_history_stats(index.clone()).unwrap();
+        let stats = get_play_history_stats(index.clone(), None).unwrap();
         assert_eq!(stats.total, 3);
         assert_eq!(stats.first_at, 1_700_000_000);
         assert_eq!(stats.last_at, 1_700_086_400);
@@ -2200,11 +2200,17 @@ mod tests {
         // daily 按日期升序
         assert!(stats.daily.windows(2).all(|w| w[0].day < w[1].day));
 
+        // since 过滤：只统计窗口内的流水
+        let windowed = get_play_history_stats(index.clone(), Some(1_700_003_600)).unwrap();
+        assert_eq!(windowed.total, 2);
+        assert_eq!(windowed.first_at, 1_700_003_600);
+        assert_eq!(windowed.hourly.iter().sum::<i64>(), 2);
+
         // 清空流水后全为 0 / 空
-        let target = get_play_history_stats(index.clone()).unwrap();
+        let target = get_play_history_stats(index.clone(), None).unwrap();
         assert_eq!(target.total, stats.total);
         let _ = import_play_history(index.clone(), vec![], true);
-        let empty = get_play_history_stats(index).unwrap();
+        let empty = get_play_history_stats(index, None).unwrap();
         assert_eq!(empty.total, 0);
         assert_eq!(empty.first_at, 0);
         assert_eq!(empty.last_at, 0);
