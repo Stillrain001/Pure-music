@@ -1170,16 +1170,16 @@ class _PlaylistCoverState extends State<_PlaylistCover> {
 
   Widget _coverImage(BuildContext context) {
     if (_cached == null) return _placeholder(context);
-    return Hero(
-      tag: widget.playlist.heroTag,
-      child: ClipRRect(
-        borderRadius: AppRadius.smCircular,
-        child: RepaintBoundary(
+    return SizedBox(
+      width: 48.0,
+      height: 48.0,
+      child: Hero(
+        tag: widget.playlist.heroTag,
+        child: ClipRRect(
+          borderRadius: AppRadius.smCircular,
           child: Image(
             key: ValueKey(_cached),
             image: _cached!,
-            width: 48.0,
-            height: 48.0,
             fit: BoxFit.cover,
             gaplessPlayback: true,
             errorBuilder: (_, _, _) => _placeholder(context),

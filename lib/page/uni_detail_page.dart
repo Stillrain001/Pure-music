@@ -1332,11 +1332,24 @@ class _UniDetailPageHeader extends StatelessWidget {
   }
 
   Widget _headerCover(ColorScheme scheme, Brightness brightness, double size) {
-    final cover = DecoratedBox(
+    final image = _HoverableCover(
+      futurePic: pic,
+      initialPic: initialPic,
+      picShape: picShape,
+      scheme: scheme,
+      size: size,
+      onTap: onPicTap,
+      busy: picBusy,
+      placeholder: Icon(
+        Symbols.queue_music,
+        size: size,
+        color: scheme.onSurface,
+      ),
+    );
+    final framed = DecoratedBox(
       decoration: BoxDecoration(
         shape: picShape == PicShape.oval ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: picShape == PicShape.rrect ? AppRadius.smCircular : null,
-        border: Border.all(color: scheme.onSurface.withValues(alpha: 0.10)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
@@ -1347,23 +1360,10 @@ class _UniDetailPageHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: _HoverableCover(
-        futurePic: pic,
-        initialPic: initialPic,
-        picShape: picShape,
-        scheme: scheme,
-        size: size,
-        onTap: onPicTap,
-        busy: picBusy,
-        placeholder: Icon(
-          Symbols.queue_music,
-          size: size,
-          color: scheme.onSurface,
-        ),
-      ),
+      child: image,
     );
-    if (heroTag == null) return cover;
-    return Hero(tag: heroTag!, child: cover);
+    if (heroTag == null) return framed;
+    return Hero(tag: heroTag!, child: framed);
   }
 
   Widget _headerInfo(
@@ -1489,6 +1489,7 @@ class _HoverableCoverState extends State<_HoverableCover> {
       image: snapshot.data!,
       width: widget.size,
       height: widget.size,
+      fit: BoxFit.cover,
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => widget.placeholder,
     );
