@@ -105,10 +105,14 @@ release/
 AGENTS.md
 skills-lock.json
 .agents/*
-!.agents/skills/
+.agents/skills/
 .agents/skills/*
-!.agents/skills/puremusic/
-!.agents/skills/puremusic/**
+.agents/skills/puremusic/
+.agents/skills/puremusic/**
 
 # Reasonix task traces
 .reasonix/
+
+# Local diagnostics, not shipped
+tool/local/
+
