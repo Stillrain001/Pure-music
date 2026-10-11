@@ -280,6 +280,7 @@ class AppSettings {
   ThemeColorSource themeColorSource = ThemeColorSource.cover;
   bool enableStackedScrollEffect = true;
   bool enableContentTransitionMotion = true;
+  bool enableNowPlayingOpenMotion = true;
   bool enableInteractiveSurfaceMotion = true;
   bool enableCoverPointerSheen = true;
   bool enableDetailHeaderCollapseMotion = true;
@@ -447,6 +448,10 @@ class AppSettings {
     _instance.enableStackedScrollEffect = stackedScrollEffect;
     _instance.enableContentTransitionMotion = normalizedBoolSetting(
       settingsMap['EnableContentTransitionMotion'],
+      defaultValue: true,
+    );
+    _instance.enableNowPlayingOpenMotion = normalizedBoolSetting(
+      settingsMap['EnableNowPlayingOpenMotion'],
       defaultValue: true,
     );
     _instance.enableInteractiveSurfaceMotion = normalizedBoolSetting(
@@ -1078,6 +1083,7 @@ class AppSettings {
     'ThemeColorMode': themeColorMode.name,
     'EnableStackedScrollEffect': enableStackedScrollEffect,
     'EnableContentTransitionMotion': enableContentTransitionMotion,
+    'EnableNowPlayingOpenMotion': enableNowPlayingOpenMotion,
     'EnableInteractiveSurfaceMotion': enableInteractiveSurfaceMotion,
     'EnableCoverPointerSheen': enableCoverPointerSheen,
     'EnableDetailHeaderCollapseMotion': enableDetailHeaderCollapseMotion,

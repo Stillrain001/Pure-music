@@ -415,6 +415,12 @@ class _ImmersiveCoverThumbnailState extends State<_ImmersiveCoverThumbnail> {
   }
 }
 
+bool _portraitNameHero(Audio? nowPlaying) {
+  return nowPlaying != null &&
+      AppSettings.instance.enableNowPlayingOpenMotion &&
+      !PlayService.instance.playbackService.nowPlayingChangedRecently;
+}
+
 class _ImmersiveTitleText extends StatelessWidget {
   const _ImmersiveTitleText();
 
@@ -425,7 +431,7 @@ class _ImmersiveTitleText extends StatelessWidget {
     return ValueListenableBuilder<Audio?>(
       valueListenable: playbackService.nowPlayingNotifier,
       builder: (context, nowPlaying, _) {
-        return Text(
+        final title = Text(
           nowPlaying == null ? 'Pure Music' : nowPlaying.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -435,6 +441,14 @@ class _ImmersiveTitleText extends StatelessWidget {
             fontSize: AppType.pageTitle,
             height: 1.2,
           ),
+        );
+        if (!_portraitNameHero(nowPlaying)) return title;
+        return Hero(
+          tag: nowPlayingTitleHeroTag,
+          curve: nowPlayingOpenCurve,
+          reverseCurve: nowPlayingCloseCurve,
+          flightShuttleBuilder: nowPlayingTextFlight,
+          child: Material(type: MaterialType.transparency, child: title),
         );
       },
     );
@@ -451,7 +465,7 @@ class _ImmersiveArtistText extends StatelessWidget {
     return ValueListenableBuilder<Audio?>(
       valueListenable: playbackService.nowPlayingNotifier,
       builder: (context, nowPlaying, _) {
-        return Text(
+        final artist = Text(
           nowPlaying == null ? 'Enjoy Music' : nowPlaying.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -460,6 +474,14 @@ class _ImmersiveArtistText extends StatelessWidget {
             fontSize: AppType.body,
             height: 1.2,
           ),
+        );
+        if (!_portraitNameHero(nowPlaying)) return artist;
+        return Hero(
+          tag: nowPlayingArtistHeroTag,
+          curve: nowPlayingOpenCurve,
+          reverseCurve: nowPlayingCloseCurve,
+          flightShuttleBuilder: nowPlayingTextFlight,
+          child: Material(type: MaterialType.transparency, child: artist),
         );
       },
     );

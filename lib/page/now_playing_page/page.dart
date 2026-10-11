@@ -10,6 +10,7 @@ import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/preference.dart';
 import 'package:pure_music/component/hotkey_ui_feedback.dart';
 import 'package:pure_music/component/motion.dart';
+import 'package:pure_music/page/now_playing_page/now_playing_open_transition.dart';
 import 'package:pure_music/component/side_nav.dart';
 import 'package:pure_music/component/title_bar.dart';
 import 'package:pure_music/core/menu_styles.dart';
@@ -2689,6 +2690,9 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
               24,
               FontWeight.bold,
               textWidth,
+              heroTag: _textHero(heroEnabled, nowPlaying)
+                  ? nowPlayingTitleHeroTag
+                  : null,
             ),
             const SizedBox(height: 8),
             _infoText(
@@ -2697,11 +2701,20 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
               16,
               FontWeight.normal,
               textWidth,
+              heroTag: _textHero(heroEnabled, nowPlaying)
+                  ? nowPlayingArtistHeroTag
+                  : null,
             ),
           ],
         ),
       ),
     );
+  }
+
+  bool _textHero(bool heroEnabled, Audio? nowPlaying) {
+    return heroEnabled &&
+        nowPlaying != null &&
+        AppSettings.instance.enableNowPlayingOpenMotion;
   }
 
   double _textWidthFor(BoxConstraints constraints, double coverSize) {
@@ -2717,14 +2730,28 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
     double coverSize,
     bool heroEnabled,
   ) {
-    final image = _coverImage(scheme, nowPlayingPath, coverSize);
+    final framed = _coverImage(
+      scheme,
+      nowPlayingPath,
+      coverSize,
+      framed: true,
+    );
     return SizedBox(
       width: coverSize,
       height: coverSize,
       child: _PlaybackCoverScale(
         child: heroEnabled && nowPlayingPath != null
-            ? Hero(tag: nowPlayingPath, child: image)
-            : RepaintBoundary(child: image),
+            ? Hero(
+                tag: nowPlayingPath,
+                curve: AppSettings.instance.enableNowPlayingOpenMotion
+                    ? nowPlayingOpenCurve
+                    : Curves.fastOutSlowIn,
+                reverseCurve: AppSettings.instance.enableNowPlayingOpenMotion
+                    ? nowPlayingCloseCurve
+                    : Curves.fastOutSlowIn.flipped,
+                child: framed,
+              )
+            : RepaintBoundary(child: framed),
       ),
     );
   }
@@ -2770,8 +2797,9 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
   Widget _coverImage(
     ColorScheme scheme,
     String? nowPlayingPath,
-    double coverSize,
-  ) {
+    double coverSize, {
+    bool framed = false,
+  }) {
     final placeholder = Icon(
       Symbols.queue_music,
       size: coverSize * 0.42,
@@ -2787,6 +2815,15 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
     if (currentCover == null && fallbackCover == null) {
       return Center(child: placeholder);
     }
+    final image = Image(
+      image: currentCover ?? fallbackCover!,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      filterQuality: _routeReady ? FilterQuality.high : FilterQuality.medium,
+      errorBuilder: (_, _, _) =>
+          FittedBox(fit: BoxFit.contain, child: placeholder),
+    );
+    if (!framed) return image;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12.0),
@@ -2801,16 +2838,7 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12.0),
-        child: Image(
-          image: currentCover ?? fallbackCover!,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          filterQuality: _routeReady
-              ? FilterQuality.high
-              : FilterQuality.medium,
-          errorBuilder: (_, _, _) =>
-              FittedBox(fit: BoxFit.contain, child: placeholder),
-        ),
+        child: image,
       ),
     );
   }
@@ -2820,20 +2848,38 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
     Color color,
     double fontSize,
     FontWeight weight,
-    double width,
-  ) {
+    double width, {
+    String? heroTag,
+  }) {
+    final label = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        color: color,
+        fontWeight: weight,
+        fontSize: fontSize,
+        height: 1.2,
+      ),
+    );
+    if (heroTag == null) return SizedBox(width: width, child: label);
     return SizedBox(
       width: width,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: color,
-          fontWeight: weight,
-          fontSize: fontSize,
-          height: 1.2,
+      child: Align(
+        alignment: Alignment.center,
+        child: Hero(
+          tag: heroTag,
+          curve: nowPlayingOpenCurve,
+          reverseCurve: nowPlayingCloseCurve,
+          flightShuttleBuilder: nowPlayingTextFlight,
+          child: Material(
+            type: MaterialType.transparency,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width),
+              child: label,
+            ),
+          ),
         ),
       ),
     );

@@ -724,6 +724,7 @@ class _MonetProgressBarSwitchState extends State<_MonetProgressBarSwitch> {
 enum _MotionEffect {
   stackedScroll,
   contentTransition,
+  nowPlayingOpen,
   interactiveSurface,
   coverPointerSheen,
   detailHeaderCollapse,
@@ -746,6 +747,7 @@ class _MotionEffectSwitchState extends State<_MotionEffectSwitch> {
   bool get _value => switch (widget.effect) {
     _MotionEffect.stackedScroll => settings.enableStackedScrollEffect,
     _MotionEffect.contentTransition => settings.enableContentTransitionMotion,
+    _MotionEffect.nowPlayingOpen => settings.enableNowPlayingOpenMotion,
     _MotionEffect.interactiveSurface => settings.enableInteractiveSurfaceMotion,
     _MotionEffect.coverPointerSheen => settings.enableCoverPointerSheen,
     _MotionEffect.detailHeaderCollapse =>
@@ -756,6 +758,7 @@ class _MotionEffectSwitchState extends State<_MotionEffectSwitch> {
   String get _description => switch (widget.effect) {
     _MotionEffect.stackedScroll => '堆叠滚动',
     _MotionEffect.contentTransition => '内容切换过渡',
+    _MotionEffect.nowPlayingOpen => '播放页展开',
     _MotionEffect.interactiveSurface => '卡片交互',
     _MotionEffect.coverPointerSheen => '封面光斑',
     _MotionEffect.detailHeaderCollapse => '详情头部收拢',
@@ -765,6 +768,7 @@ class _MotionEffectSwitchState extends State<_MotionEffectSwitch> {
   String get _subtitle => switch (widget.effect) {
     _MotionEffect.stackedScroll => '列表滚动时使用堆叠与平滑滚动',
     _MotionEffect.contentTransition => '页面切换时使用层级推入',
+    _MotionEffect.nowPlayingOpen => '从迷你播放条张开成播放页，关闭后改为淡入',
     _MotionEffect.interactiveSurface => '专辑、艺术家、歌单和文件夹卡片的悬停与按压',
     _MotionEffect.coverPointerSheen => '鼠标在专辑封面上时显示跟随光晕',
     _MotionEffect.detailHeaderCollapse => '详情页头部随滚动收拢',
@@ -777,6 +781,8 @@ class _MotionEffectSwitchState extends State<_MotionEffectSwitch> {
         settings.enableStackedScrollEffect = value;
       case _MotionEffect.contentTransition:
         settings.enableContentTransitionMotion = value;
+      case _MotionEffect.nowPlayingOpen:
+        settings.enableNowPlayingOpenMotion = value;
       case _MotionEffect.interactiveSurface:
         settings.enableInteractiveSurfaceMotion = value;
       case _MotionEffect.coverPointerSheen:
@@ -3658,6 +3664,8 @@ class _AppearanceListGroup extends StatelessWidget {
         _MotionEffectSwitch(effect: _MotionEffect.stackedScroll),
         SizedBox(height: 16.0),
         _MotionEffectSwitch(effect: _MotionEffect.contentTransition),
+        SizedBox(height: 16.0),
+        _MotionEffectSwitch(effect: _MotionEffect.nowPlayingOpen),
         SizedBox(height: 16.0),
         _MotionEffectSwitch(effect: _MotionEffect.interactiveSurface),
         SizedBox(height: 16.0),

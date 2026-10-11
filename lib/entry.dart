@@ -15,6 +15,7 @@ import 'package:pure_music/page/audios_page.dart';
 import 'package:pure_music/page/concert_page.dart';
 import 'package:pure_music/page/folder_detail_page.dart';
 import 'package:pure_music/page/folders_page.dart';
+import 'package:pure_music/page/now_playing_page/now_playing_open_transition.dart';
 import 'package:pure_music/page/now_playing_page/page.dart';
 import 'package:pure_music/page/playlist_detail_page.dart';
 import 'package:pure_music/page/playlists_page.dart';
@@ -850,30 +851,51 @@ class _EntryState extends State<Entry>
           final motionEnabled =
               AppSettings.instance.enableContentTransitionMotion &&
               !MediaQuery.disableAnimationsOf(context);
+          final openMotion =
+              motionEnabled && AppSettings.instance.enableNowPlayingOpenMotion;
+          if (!openMotion) {
+            return CustomTransitionPage(
+              key: state.pageKey,
+              maintainState: false,
+              transitionDuration: motionEnabled
+                  ? MotionDuration.medium
+                  : Duration.zero,
+              reverseTransitionDuration: motionEnabled
+                  ? MotionDuration.medium
+                  : Duration.zero,
+              transitionsBuilder: (context, animation, _, child) {
+                if (!motionEnabled) return child;
+                final curved = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                );
+                final slide = Tween<Offset>(
+                  begin: const Offset(0.0, 0.06),
+                  end: Offset.zero,
+                ).animate(curved);
+                final fade = Tween<double>(
+                  begin: 0.0,
+                  end: 1.0,
+                ).animate(curved);
+                return FadeTransition(
+                  opacity: fade,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              child: const NowPlayingPage(),
+            );
+          }
           return CustomTransitionPage(
             key: state.pageKey,
             maintainState: false,
-            transitionDuration: motionEnabled
-                ? MotionDuration.medium
-                : Duration.zero,
-            reverseTransitionDuration: motionEnabled
-                ? MotionDuration.medium
-                : Duration.zero,
+            transitionDuration: MotionDuration.medium,
+            reverseTransitionDuration: MotionDuration.medium,
             transitionsBuilder: (context, animation, _, child) {
-              if (!motionEnabled) return child;
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-                reverseCurve: Curves.easeInCubic,
-              );
-              final slide = Tween<Offset>(
-                begin: const Offset(0.0, 0.06),
-                end: Offset.zero,
-              ).animate(curved);
-              final fade = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
-              return FadeTransition(
-                opacity: fade,
-                child: SlideTransition(position: slide, child: child),
+              return NowPlayingOpenTransition(
+                animation: animation,
+                motionEnabled: true,
+                child: child,
               );
             },
             child: const NowPlayingPage(),

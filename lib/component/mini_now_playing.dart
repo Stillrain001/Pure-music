@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:pure_music/component/rectangle_progress_indicator.dart';
+import 'package:pure_music/page/now_playing_page/now_playing_open_transition.dart';
 import 'package:pure_music/component/responsive_builder.dart';
 import 'package:pure_music/component/motion.dart';
 import 'package:pure_music/library/audio_library.dart';
@@ -9,6 +10,7 @@ import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/services/concert_session.dart';
 import 'package:pure_music/native/bass/bass_player.dart';
 import 'package:pure_music/core/design_tokens.dart';
+import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/core/paths.dart' as app_paths;
 import 'package:flutter/material.dart';
@@ -83,6 +85,7 @@ class _MiniNowPlayingState extends State<MiniNowPlaying> {
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       child: SizedBox(
+        key: NowPlayingBarBounds.barKey,
         height: 64.0,
         width: double.infinity,
         child: DecoratedBox(
@@ -219,7 +222,12 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
           borderRadius: AppRadius.smCircular,
           child: InkWell(
             onHover: _onHover,
-            onTap: () => context.push(app_paths.NOW_PLAYING_PAGE),
+            onTap: () {
+              if (AppSettings.instance.enableNowPlayingOpenMotion) {
+                NowPlayingBarBounds.capture();
+              }
+              context.push(app_paths.NOW_PLAYING_PAGE);
+            },
             borderRadius: AppRadius.smCircular,
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
@@ -375,7 +383,7 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
                 child: Center(child: placeholder),
               ),
         const SizedBox(width: 8.0),
-        Expanded(child: _titles(scheme, nowPlaying)),
+        Expanded(child: _titles(scheme, nowPlaying, heroEnabled)),
       ],
     );
   }
@@ -393,37 +401,74 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
     return Hero(tag: nowPlaying.path, child: cover);
   }
 
-  Widget _titles(ColorScheme scheme, Audio? nowPlaying) {
+  Widget _titles(ColorScheme scheme, Audio? nowPlaying, bool heroEnabled) {
     return ListenableBuilder(
-      listenable: ConcertSession.instance,
+      listenable: Listenable.merge([
+        ConcertSession.instance,
+        AppSettings.listMotionNotifier,
+      ]),
       builder: (context, _) {
         final session = ConcertSession.instance;
         final index = PlayService.instance.playbackService.playlistIndex;
         final act = session.actAt(index);
-        final subtitle = nowPlaying == null
-            ? '享受音乐'
-            : act == null
-            ? '${nowPlaying.artist} - ${nowPlaying.album}'
-            : '$act · ${index + 1}/${session.length} · ${nowPlaying.artist}';
+        final fly =
+            heroEnabled &&
+            nowPlaying != null &&
+            act == null &&
+            AppSettings.instance.enableNowPlayingOpenMotion;
+        final color = scheme.onSecondaryContainer;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            _flyingLabel(
               nowPlaying != null ? nowPlaying.title : 'Pure Music',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: scheme.onSecondaryContainer),
+              color,
+              fly ? nowPlayingTitleHeroTag : null,
             ),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: scheme.onSecondaryContainer),
-            ),
+            nowPlaying == null
+                ? _flyingLabel('享受音乐', color, null)
+                : act != null
+                ? _flyingLabel(
+                    '$act · ${index + 1}/${session.length} · ${nowPlaying.artist}',
+                    color,
+                    null,
+                  )
+                : _artistLine(nowPlaying, color, fly),
           ],
         );
       },
+    );
+  }
+
+  Widget _artistLine(Audio nowPlaying, Color color, bool fly) {
+    final album = nowPlaying.album.trim();
+    return Row(
+      children: [
+        Flexible(
+          child: _flyingLabel(
+            nowPlaying.artist,
+            color,
+            fly ? nowPlayingArtistHeroTag : null,
+          ),
+        ),
+        if (album.isNotEmpty)
+          Flexible(child: _flyingLabel(' - $album', color, null)),
+      ],
+    );
+  }
+
+  Widget _flyingLabel(String text, Color color, String? heroTag) {
+    final label = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: color),
+    );
+    if (heroTag == null) return label;
+    return Hero(
+      tag: heroTag,
+      child: Material(type: MaterialType.transparency, child: label),
     );
   }
 
@@ -456,14 +501,14 @@ class _MiniTrackSwitcher extends StatelessWidget {
       MiniNowPlayingSlideDirection.none => 0.0,
     };
     final duration = enabled && sign != 0.0
-        ? MotionDuration.fast
+        ? MotionDuration.base
         : Duration.zero;
     return ClipRect(
       child: AnimatedSwitcher(
         duration: duration,
         reverseDuration: duration,
-        switchInCurve: MotionCurve.standard,
-        switchOutCurve: MotionCurve.standard,
+        switchInCurve: MotionCurve.entrance,
+        switchOutCurve: MotionCurve.entrance,
         layoutBuilder: (currentChild, previousChildren) => Stack(
           fit: StackFit.passthrough,
           clipBehavior: Clip.none,
@@ -471,18 +516,20 @@ class _MiniTrackSwitcher extends StatelessWidget {
         ),
         transitionBuilder: (child, animation) {
           final incoming = child.key == this.child.key;
-          final begin = incoming ? Offset(sign, 0.0) : Offset(-sign, 0.0);
-          final curvedAnimation = CurvedAnimation(
-            parent: animation,
-            curve: MotionCurve.standard,
-            reverseCurve: MotionCurve.standard,
-          );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: begin,
-              end: Offset.zero,
-            ).animate(curvedAnimation),
-            child: child,
+          final travel = incoming ? 20.0 : 12.0;
+          final from = incoming ? sign : -sign;
+          return FadeTransition(
+            opacity: animation,
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset((1 - animation.value) * from * travel, 0),
+                  child: child,
+                );
+              },
+              child: child,
+            ),
           );
         },
         child: child,
