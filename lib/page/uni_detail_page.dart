@@ -141,6 +141,7 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
   final _tertiaryScrollController = SmoothScrollController();
   final _combinedScrollController = SmoothScrollController();
   Map<String, int> _alphabetSectionIndexes = const {};
+  double _contentViewportWidth = 0;
 
   bool get _hasTertiaryContent =>
       canShowRelatedContentTab(widget.tertiaryContent?.length ?? 0);
@@ -280,12 +281,14 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
   }
 
   int _gridCrossAxisCount() {
-    final crossAxisCount = maxExtentGridCrossAxisCount(
-      crossAxisExtent: SidebarMotionScope.columnLayoutWidthOf(context),
+    final crossAxisExtent = _contentViewportWidth > 0
+        ? _contentViewportWidth
+        : SidebarMotionScope.columnLayoutWidthOf(context);
+    return maxExtentGridCrossAxisCount(
+      crossAxisExtent: crossAxisExtent,
       maxCrossAxisExtent: gridDelegate.maxCrossAxisExtent,
       crossAxisSpacing: gridDelegate.crossAxisSpacing,
     );
-    return crossAxisCount;
   }
 
   double _offsetForIndex(int index) {
@@ -578,14 +581,19 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
     return Row(
       children: [
         Expanded(
-          child: MultiSelectPointerRegion<S>(
-            controller: multiSelectController,
-            child: _buildResultList(
-              multiSelectController: multiSelectController,
-              scheme: scheme,
-              hasTertiaryContent: hasTertiaryContent,
-              currentTabIndex: currentTabIndex,
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _contentViewportWidth = constraints.maxWidth;
+              return MultiSelectPointerRegion<S>(
+                controller: multiSelectController,
+                child: _buildResultList(
+                  multiSelectController: multiSelectController,
+                  scheme: scheme,
+                  hasTertiaryContent: hasTertiaryContent,
+                  currentTabIndex: currentTabIndex,
+                ),
+              );
+            },
           ),
         ),
         if (showAlphabetIndex)
@@ -705,11 +713,7 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
             _secondarySliver(
               multiSelectController,
               enableStackedEffect,
-              maxExtentGridCrossAxisCount(
-                crossAxisExtent: SidebarMotionScope.columnLayoutWidthOf(context),
-                maxCrossAxisExtent: gridDelegate.maxCrossAxisExtent,
-                crossAxisSpacing: gridDelegate.crossAxisSpacing,
-              ),
+              _gridCrossAxisCount(),
             ),
             const SliverPadding(padding: EdgeInsets.only(bottom: 96.0)),
           ],
@@ -840,11 +844,7 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
     bool enableStackedEffect,
     bool enableSmoothScrolling,
   ) {
-    final crossAxisCount = maxExtentGridCrossAxisCount(
-      crossAxisExtent: SidebarMotionScope.columnLayoutWidthOf(context),
-      maxCrossAxisExtent: 300,
-      crossAxisSpacing: 8,
-    );
+    final crossAxisCount = _gridCrossAxisCount();
     final content = CustomScrollView(
       controller: _tertiaryScrollController,
       physics: enableSmoothScrolling ? const SmoothScrollPhysics() : null,
@@ -888,11 +888,7 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
     final enableStackedEffect = AppSettings.instance.enableStackedScrollEffect;
     final enableSmoothScrolling =
         enableStackedEffect && !MediaQuery.disableAnimationsOf(context);
-    final crossAxisCount = maxExtentGridCrossAxisCount(
-      crossAxisExtent: SidebarMotionScope.columnLayoutWidthOf(context),
-      maxCrossAxisExtent: 300,
-      crossAxisSpacing: 8,
-    );
+    final crossAxisCount = _gridCrossAxisCount();
     return Material(
       borderRadius: AppRadius.smCircular,
       type: MaterialType.transparency,

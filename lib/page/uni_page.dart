@@ -347,6 +347,11 @@ int uniPageContentAreaMicros = 0;
 
 class _UniPageState<T> extends State<UniPage<T>> {
   static const int _backgroundSortItemThreshold = 4096;
+  static const EdgeInsets _tablePadding = EdgeInsets.only(
+    top: 5.0,
+    bottom: 96.0,
+    right: 20,
+  );
   late SortMethodDesc<T>? currSortMethod = resolveSortMethod(
     widget.pref,
     widget.sortMethods,
@@ -362,6 +367,7 @@ class _UniPageState<T> extends State<UniPage<T>> {
   bool _backgroundSortWorkerActive = false;
   String _pendingSortReason = 'sort';
   Map<String, int> _alphabetSectionIndexes = const {};
+  double _contentViewportWidth = 0;
 
   ScrollController get scrollController => currContentView == ContentView.list
       ? listScrollController
@@ -590,9 +596,9 @@ class _UniPageState<T> extends State<UniPage<T>> {
     if (delegate is! SliverGridDelegateWithMaxCrossAxisExtent) {
       return null;
     }
-    final crossAxisExtent = (
-      SidebarMotionScope.columnLayoutWidthOf(context) - 20
-    ).clamp(0.0, double.infinity);
+    if (_contentViewportWidth <= 0) return null;
+    final crossAxisExtent = (_contentViewportWidth - _tablePadding.horizontal)
+        .clamp(0.0, double.infinity);
     final crossAxisCount = maxExtentGridCrossAxisCount(
       crossAxisExtent: crossAxisExtent,
       maxCrossAxisExtent: delegate.maxCrossAxisExtent,
@@ -614,7 +620,8 @@ class _UniPageState<T> extends State<UniPage<T>> {
     if (currContentView == ContentView.list) return index * 64.0;
     final metrics = _gridMetrics();
     if (metrics != null) {
-      return (index ~/ metrics.crossAxisCount) * metrics.mainAxisStep;
+      return _tablePadding.top +
+          (index ~/ metrics.crossAxisCount) * metrics.mainAxisStep;
     }
     if (!scrollController.hasClients || widget.contentList.isEmpty) return 0;
     return scrollController.position.maxScrollExtent *
@@ -628,7 +635,10 @@ class _UniPageState<T> extends State<UniPage<T>> {
     }
     final metrics = _gridMetrics();
     if (metrics != null && metrics.mainAxisStep > 0) {
-      return ((offset / metrics.mainAxisStep).floor() * metrics.crossAxisCount)
+      final contentOffset = offset - _tablePadding.top;
+      if (contentOffset <= 0) return 0;
+      return ((contentOffset / metrics.mainAxisStep).floor() *
+              metrics.crossAxisCount)
           .clamp(0, widget.contentList.length - 1);
     }
     if (!scrollController.hasClients ||
@@ -898,14 +908,14 @@ class _UniPageState<T> extends State<UniPage<T>> {
             (widget.gridDelegate ?? gridDelegate)
                 as SliverGridDelegateWithMaxCrossAxisExtent,
         itemCount: widget.contentList.length,
-        padding: const EdgeInsets.only(top: 5.0, bottom: 96.0, right: 20),
+        padding: _tablePadding,
         itemBuilder: itemBuilder,
       );
     }
     return SidebarGridTransition(
       controller: tableScrollController,
       physics: listMotion ? const SmoothScrollPhysics() : null,
-      padding: const EdgeInsets.only(top: 5.0, bottom: 96.0, right: 20),
+      padding: _tablePadding,
       gridDelegate: widget.gridDelegate ?? gridDelegate,
       revision: (widget.contentRevision, currSortMethod, currSortOrder),
       itemCount: widget.contentList.length,
@@ -931,9 +941,14 @@ class _UniPageState<T> extends State<UniPage<T>> {
     return Row(
       children: [
         Expanded(
-          child: MultiSelectPointerRegion<T>(
-            controller: multiSelectController,
-            child: _contentSwitcher(listView, tableMotionView),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _contentViewportWidth = constraints.maxWidth;
+              return MultiSelectPointerRegion<T>(
+                controller: multiSelectController,
+                child: _contentSwitcher(listView, tableMotionView),
+              );
+            },
           ),
         ),
         if (showAlphabetIndex)
