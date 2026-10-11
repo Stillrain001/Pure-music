@@ -1122,6 +1122,7 @@ class _PlaylistCoverState extends State<_PlaylistCover> {
     final custom = await widget.playlist.resolveCoverProvider(size: 48);
     if (!mounted || token != _loadToken) return;
     if (custom != null) {
+      widget.playlist.previewCover = custom;
       setState(() => _cached = custom);
       return;
     }
@@ -1131,7 +1132,9 @@ class _PlaylistCoverState extends State<_PlaylistCover> {
         firstAudio.smallCoverBytes ?? await firstAudio.loadSmallCoverBytes();
     if (!mounted || token != _loadToken) return;
     if (bytes != null) {
-      setState(() => _cached = MemoryImage(bytes));
+      final image = MemoryImage(bytes);
+      widget.playlist.previewCover = image;
+      setState(() => _cached = image);
     }
   }
 
@@ -1167,17 +1170,20 @@ class _PlaylistCoverState extends State<_PlaylistCover> {
 
   Widget _coverImage(BuildContext context) {
     if (_cached == null) return _placeholder(context);
-    return ClipRRect(
-      borderRadius: AppRadius.smCircular,
-      child: RepaintBoundary(
-        child: Image(
-          key: ValueKey(_cached),
-          image: _cached!,
-          width: 48.0,
-          height: 48.0,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => _placeholder(context),
+    return Hero(
+      tag: widget.playlist.heroTag,
+      child: ClipRRect(
+        borderRadius: AppRadius.smCircular,
+        child: RepaintBoundary(
+          child: Image(
+            key: ValueKey(_cached),
+            image: _cached!,
+            width: 48.0,
+            height: 48.0,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => _placeholder(context),
+          ),
         ),
       ),
     );

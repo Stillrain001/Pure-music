@@ -351,7 +351,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       pref: pref,
       primaryContent: widget.playlist,
       primaryPic: _primaryPicFuture,
+      primaryPicSeed: widget.playlist.previewCover,
       picShape: PicShape.rrect,
+      heroTag: widget.playlist.heroTag,
       title: widget.playlist.name,
       subtitle: _searchQuery.isEmpty
           ? '${allAudios.length} 首乐曲'

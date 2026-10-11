@@ -332,6 +332,11 @@ class Playlist {
   String name;
   List<String> paths;
   String? coverSource;
+
+  /// 列表上已经显示出来的封面，详情页落地时先用它，避免空一帧。
+  ImageProvider? previewCover;
+
+  String get heroTag => 'playlist:${id ?? name}';
   Set<String>? _pathKeys;
   final Map<String, DateTime> _addedAt = {};
   List<Audio>? _audiosCache;

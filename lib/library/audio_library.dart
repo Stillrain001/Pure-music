@@ -3062,6 +3062,16 @@ class Artist {
 
   String? get primaryPath => works.firstOrNull?.path;
 
+  /// 详情页头图已缓存的那张；没有再退回列表缩略图，给飞行动画落地用。
+  ImageProvider? get cachedDetailPicture {
+    final path = primaryPath;
+    if (path != null && _pictureCachePath == path) {
+      final detail = _pictureCache?.target;
+      if (detail != null) return detail;
+    }
+    return cachedThumbnailPicture(size: 48);
+  }
+
   /// 只能用在artist detail page
   /// 200*200
   Future<ImageProvider?> get picture async {
@@ -3177,6 +3187,16 @@ class Album {
   final Map<int, _CollectionThumbnail> _thumbnailCovers = {};
 
   String? get primaryPath => works.firstOrNull?.path;
+
+  /// 详情页头图已缓存的那张；没有再退回列表缩略图，给飞行动画落地用。
+  ImageProvider? get cachedDetailCover {
+    final path = primaryPath;
+    if (path != null && _coverCachePath == path) {
+      final detail = _coverCache?.target;
+      if (detail != null) return detail;
+    }
+    return cachedThumbnailCover(size: 160) ?? cachedThumbnailCover(size: 48);
+  }
 
   /// 只能用在album detail page
   /// 200*200

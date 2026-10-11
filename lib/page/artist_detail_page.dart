@@ -32,6 +32,8 @@ class ArtistDetailPage extends StatelessWidget {
       picShape: PicShape.oval,
       title: artist.name,
       subtitle: '${artist.works.length} 首作品',
+      heroTag: 'artist:${artist.primaryPath}',
+      primaryPicSeed: artist.cachedDetailPicture,
       secondaryContent: secondaryContent,
       secondaryContentBuilder: (context, audio, i, multiSelectController, _) =>
           AudioTile(
@@ -42,8 +44,11 @@ class ArtistDetailPage extends StatelessWidget {
       tertiaryContentTitle: '专辑',
       tertiaryContent: artist.albumsMap.values.toList(),
       tertiaryContentBuilder:
-          (context, album, i, multiSelectController, view) =>
-              AlbumTile(album: album, view: view),
+          (context, album, i, multiSelectController, view) => AlbumTile(
+            album: album,
+            view: view,
+            enableHero: false,
+          ),
       enablePlayAll: secondaryContent.isNotEmpty,
       enableShufflePlay: secondaryContent.isNotEmpty,
       enableSortMethod: canSortSongs,

@@ -63,6 +63,8 @@ class UniDetailPage<P, S, T> extends StatefulWidget {
     this.searchQuery = '',
     this.onSearchChanged,
     this.locateButtonsController,
+    this.heroTag,
+    this.primaryPicSeed,
   });
 
   final PagePreference pref;
@@ -111,6 +113,12 @@ class UniDetailPage<P, S, T> extends StatefulWidget {
 
   /// 覆盖默认活动滚动控制器（bodyOverride 使用外部列表时传入）。
   final ScrollController? locateButtonsController;
+
+  /// Hero 共享元素动画标签。传入后头图会与来源列表的封面配对飞行。
+  final String? heroTag;
+
+  /// 列表上已经在显示的封面。飞行动画落地时先画它，避免头图重新加载闪一下。
+  final ImageProvider? primaryPicSeed;
 
   @override
   State<UniDetailPage<P, S, T>> createState() => _UniDetailPageState<P, S, T>();
@@ -488,6 +496,8 @@ class _UniDetailPageState<P, S, T> extends State<UniDetailPage<P, S, T>> {
           searchQuery: widget.searchQuery,
           onSearchChanged: widget.onSearchChanged,
           collapseProgress: collapseProgress,
+          heroTag: widget.heroTag,
+          initialPic: widget.primaryPicSeed,
         );
         if (!_enableHeaderCollapse(context)) {
           return buildHeader(0);
@@ -1244,6 +1254,8 @@ class _UniDetailPageHeader extends StatelessWidget {
     this.searchQuery = '',
     this.onSearchChanged,
     this.collapseProgress = 0,
+    this.heroTag,
+    this.initialPic,
   });
 
   final Future<ImageProvider?> pic;
@@ -1260,6 +1272,8 @@ class _UniDetailPageHeader extends StatelessWidget {
   final String searchQuery;
   final ValueChanged<String>? onSearchChanged;
   final double collapseProgress;
+  final String? heroTag;
+  final ImageProvider? initialPic;
 
   @override
   Widget build(BuildContext context) {
@@ -1306,12 +1320,15 @@ class _UniDetailPageHeader extends StatelessWidget {
         vertical: verticalInset,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _headerCover(scheme, theme.brightness, coverSize),
           SizedBox(width: gap),
           Expanded(
-            child: _headerInfo(scheme, titleSize, expandedContentOpacity),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: coverSize),
+              child: _headerInfo(scheme, titleSize, expandedContentOpacity),
+            ),
           ),
         ],
       ),
@@ -1319,7 +1336,7 @@ class _UniDetailPageHeader extends StatelessWidget {
   }
 
   Widget _headerCover(ColorScheme scheme, Brightness brightness, double size) {
-    return DecoratedBox(
+    final cover = DecoratedBox(
       decoration: BoxDecoration(
         shape: picShape == PicShape.oval ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: picShape == PicShape.rrect ? AppRadius.smCircular : null,
@@ -1336,6 +1353,7 @@ class _UniDetailPageHeader extends StatelessWidget {
       ),
       child: _HoverableCover(
         futurePic: pic,
+        initialPic: initialPic,
         picShape: picShape,
         scheme: scheme,
         size: size,
@@ -1348,6 +1366,8 @@ class _UniDetailPageHeader extends StatelessWidget {
         ),
       ),
     );
+    if (heroTag == null) return cover;
+    return Hero(tag: heroTag!, child: cover);
   }
 
   Widget _headerInfo(
@@ -1403,6 +1423,7 @@ class _UniDetailPageHeader extends StatelessWidget {
 
 class _HoverableCover extends StatefulWidget {
   final Future<ImageProvider?> futurePic;
+  final ImageProvider? initialPic;
   final PicShape picShape;
   final ColorScheme scheme;
   final double size;
@@ -1411,6 +1432,7 @@ class _HoverableCover extends StatefulWidget {
   final Widget placeholder;
   const _HoverableCover({
     required this.futurePic,
+    this.initialPic,
     required this.picShape,
     required this.scheme,
     required this.size,
@@ -1453,6 +1475,7 @@ class _HoverableCoverState extends State<_HoverableCover> {
       width: widget.size,
       height: widget.size,
       child: FutureBuilder(
+        initialData: widget.initialPic,
         future: widget.futurePic,
         builder: (context, snapshot) => _coverSnapshot(snapshot),
       ),
@@ -1460,10 +1483,12 @@ class _HoverableCoverState extends State<_HoverableCover> {
   }
 
   Widget _coverSnapshot(AsyncSnapshot<ImageProvider?> snapshot) {
-    if (snapshot.connectionState != ConnectionState.done) {
-      return const Center(child: CircularProgressIndicator());
+    if (snapshot.data == null) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return widget.placeholder;
     }
-    if (snapshot.data == null) return widget.placeholder;
     final image = Image(
       image: snapshot.data!,
       width: widget.size,

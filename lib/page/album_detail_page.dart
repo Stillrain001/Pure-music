@@ -169,6 +169,8 @@ class _AlbumDetailScaffold extends StatelessWidget {
       picShape: PicShape.rrect,
       title: album.name,
       subtitle: '${album.works.length} 首作品',
+      heroTag: 'album:${album.primaryPath}',
+      primaryPicSeed: album.cachedDetailCover,
       secondaryContent: secondaryContent,
       secondaryContentBuilder: (context, audio, i, ctl, view) =>
           _songTile(audio, i, secondaryContent, ctl, view, showDiscSections),
@@ -178,8 +180,11 @@ class _AlbumDetailScaffold extends StatelessWidget {
       tertiaryContentTitle: '艺术家',
       tertiaryContent: album.artistsMap.values.toList(),
       tertiaryContentBuilder:
-          (context, artist, i, multiSelectController, view) =>
-              ArtistTile(artist: artist, view: view),
+          (context, artist, i, multiSelectController, view) => ArtistTile(
+            artist: artist,
+            view: view,
+            enableHero: false,
+          ),
       enableShufflePlay: secondaryContent.isNotEmpty,
       enablePlayAll: secondaryContent.isNotEmpty,
       enableSortMethod: canSortSongs,

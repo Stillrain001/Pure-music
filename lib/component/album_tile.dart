@@ -19,11 +19,15 @@ class AlbumTile extends StatefulWidget {
     required this.album,
     this.multiSelectController,
     this.view = ContentView.list,
+    this.enableHero = true,
   });
 
   final Album album;
   final MultiSelectController<Album>? multiSelectController;
   final ContentView view;
+
+  /// 详情页三级标签里禁用 Hero，避免与详情页头部的 Hero 标签冲突。
+  final bool enableHero;
 
   @override
   State<AlbumTile> createState() => _AlbumTileState();
@@ -223,7 +227,12 @@ class _AlbumTileState extends State<AlbumTile> {
         child: image,
       );
     }
-    return ClipRRect(borderRadius: borderRadius, child: image);
+    final clipped = ClipRRect(borderRadius: borderRadius, child: image);
+    if (!widget.enableHero) return clipped;
+    return Hero(
+      tag: 'album:${widget.album.primaryPath}',
+      child: clipped,
+    );
   }
 
   Widget _listBody(

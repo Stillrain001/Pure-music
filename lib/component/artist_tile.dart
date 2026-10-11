@@ -20,11 +20,15 @@ class ArtistTile extends StatefulWidget {
     required this.artist,
     this.multiSelectController,
     this.view = ContentView.list,
+    this.enableHero = true,
   });
 
   final Artist artist;
   final MultiSelectController<Artist>? multiSelectController;
   final ContentView view;
+
+  /// 详情页三级标签里禁用 Hero，避免与详情页头部的 Hero 标签冲突。
+  final bool enableHero;
 
   @override
   State<ArtistTile> createState() => _ArtistTileState();
@@ -221,7 +225,7 @@ class _ArtistTileState extends State<ArtistTile> {
               ? placeholder
               : _coverPlaceholder(scheme);
         }
-        return ClipOval(
+        final clipped = ClipOval(
           child: Image(
             image: snapshot.data!,
             width: 48.0,
@@ -230,6 +234,11 @@ class _ArtistTileState extends State<ArtistTile> {
             fit: BoxFit.cover,
             gaplessPlayback: true,
           ),
+        );
+        if (!widget.enableHero) return clipped;
+        return Hero(
+          tag: 'artist:${widget.artist.primaryPath}',
+          child: clipped,
         );
       },
     );
