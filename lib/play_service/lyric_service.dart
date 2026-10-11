@@ -1347,6 +1347,8 @@ class LyricService extends ChangeNotifier {
       final hasEmbedded = existing != null && existing.trim().isNotEmpty;
       final lyric = _currLyric;
       if (lyric == null) return;
+      // TTML 写入标签会被转成 LRC，按开关决定是否跳过
+      if (lyric is Ttml && !AppSettings.instance.writeTtmlLyricToTag) return;
       final lrcText = serializeLyricToLrc(
         lyric,
         wordFormat: AppSettings.instance.lyricTagWordFormat,

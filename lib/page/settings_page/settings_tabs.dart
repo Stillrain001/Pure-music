@@ -4047,6 +4047,18 @@ class _LyricWritingGroupState extends State<_LyricWritingGroup> {
       if (mode != LyricWriteMode.off) ...[
         const SizedBox(height: 16.0),
         _writeDelayTile(),
+        const SizedBox(height: 16.0),
+        SettingsTile(
+          description: '写入 TTML 歌词',
+          subtitle: '网络歌词为 TTML 格式时是否写入标签',
+          action: Switch(
+            value: settings.writeTtmlLyricToTag,
+            onChanged: (value) {
+              setState(() => settings.writeTtmlLyricToTag = value);
+              settings.saveSettings();
+            },
+          ),
+        ),
       ],
       const SizedBox(height: 16.0),
       SettingsTile(

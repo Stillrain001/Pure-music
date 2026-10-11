@@ -263,6 +263,7 @@ class AppSettings {
   int promptWriteLyricToTagDelay = 15;
   LyricWriteMode lyricWriteMode = LyricWriteMode.ask;
   int autoWriteLyricToTagDelay = 30;
+  bool writeTtmlLyricToTag = true;
   LyricTagWordFormat lyricTagWordFormat = LyricTagWordFormat.enhanced;
   bool lyricTagIncludeTranslation = true;
   bool lyricTagIncludeRomanization = true;
@@ -585,6 +586,11 @@ class AppSettings {
         max: 120,
       );
     }
+
+    _instance.writeTtmlLyricToTag = normalizedBoolSetting(
+      settingsMap['WriteTtmlLyricToTag'],
+      defaultValue: true,
+    );
   }
 
   static void _readLyricTagSettings(Map settingsMap) {
@@ -1099,6 +1105,7 @@ class AppSettings {
     'LyricWriteMode': lyricWriteMode.name,
     'AutoWriteLyricToTag': lyricWriteMode == LyricWriteMode.auto,
     'AutoWriteLyricToTagDelay': autoWriteLyricToTagDelay,
+    'WriteTtmlLyricToTag': writeTtmlLyricToTag,
     'LyricTagWordFormat': lyricTagWordFormat.name,
     'LyricTagIncludeTranslation': lyricTagIncludeTranslation,
     'LyricTagIncludeRomanization': lyricTagIncludeRomanization,
