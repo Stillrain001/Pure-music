@@ -48,6 +48,7 @@ void main() {
     final previousColorMode = settings.themeColorMode;
     final previousStackedEffect = settings.enableStackedScrollEffect;
     final previousCloseBehavior = settings.windowCloseBehavior;
+    final previousCloseChosen = settings.windowCloseBehaviorChosen;
     try {
       await AppSettings.readFromSettingsMapForTest({
         'Version': 'test',
@@ -66,7 +67,8 @@ void main() {
         ..themeOption = previousThemeOption
         ..themeColorMode = previousColorMode
         ..enableStackedScrollEffect = previousStackedEffect
-        ..windowCloseBehavior = previousCloseBehavior;
+        ..windowCloseBehavior = previousCloseBehavior
+        ..windowCloseBehaviorChosen = previousCloseChosen;
     }
   });
 

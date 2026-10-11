@@ -2633,31 +2633,44 @@ class _WindowCloseBehaviorControlState
   bool _updating = false;
 
   Future<void> _setBehavior(WindowCloseBehavior behavior) async {
-    if (_updating || behavior == settings.windowCloseBehavior) return;
+    if (_updating) return;
+    if (behavior == settings.windowCloseBehavior &&
+        settings.windowCloseBehaviorChosen) {
+      return;
+    }
     final previous = settings.windowCloseBehavior;
+    final previousChosen = settings.windowCloseBehaviorChosen;
     setState(() {
       _updating = true;
       settings.windowCloseBehavior = behavior;
+      settings.windowCloseBehaviorChosen = true;
     });
     try {
       final trayUpdated = await WindowLifecycleService.instance.syncTrayIcon();
       if (!trayUpdated && behavior == WindowCloseBehavior.minimizeToTray) {
-        await _restoreBehavior(previous);
+        await _restoreBehavior(previous, previousChosen);
         _showSaveError('通知区初始化失败');
         return;
       }
       if (!await settings.saveSettings()) {
-        await _restoreBehavior(previous);
+        await _restoreBehavior(previous, previousChosen);
         _showSaveError('关闭行为保存失败');
+        return;
       }
+      WindowLifecycleService.instance.closeChoiceRevision.value++;
     } finally {
       if (mounted) setState(() => _updating = false);
     }
   }
 
-  Future<void> _restoreBehavior(WindowCloseBehavior behavior) async {
+  Future<void> _restoreBehavior(
+    WindowCloseBehavior behavior,
+    bool chosen,
+  ) async {
     settings.windowCloseBehavior = behavior;
+    settings.windowCloseBehaviorChosen = chosen;
     await WindowLifecycleService.instance.syncTrayIcon();
+    if (mounted) setState(() {});
   }
 
   void _showSaveError(String message) {
@@ -2666,25 +2679,38 @@ class _WindowCloseBehaviorControlState
 
   @override
   Widget build(BuildContext context) {
-    return SettingsTile(
-      description: '关闭主窗口时',
-      subtitle: settings.windowCloseBehavior == WindowCloseBehavior.exit
-          ? '退出程序并停止播放'
-          : '隐藏到通知区并继续播放',
-      action: SegmentedButton<WindowCloseBehavior>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(value: WindowCloseBehavior.exit, label: Text('退出程序')),
-          ButtonSegment(
-            value: WindowCloseBehavior.minimizeToTray,
-            label: Text('通知区'),
+    return ValueListenableBuilder<int>(
+      valueListenable: WindowLifecycleService.instance.closeChoiceRevision,
+      builder: (context, _, _) {
+        final chosen = settings.windowCloseBehaviorChosen;
+        final behavior = settings.windowCloseBehavior;
+        return SettingsTile(
+          description: '关闭主窗口时',
+          subtitle: chosen
+              ? (behavior == WindowCloseBehavior.exit
+                    ? '退出程序并停止播放'
+                    : '隐藏到通知区并继续播放')
+              : '关闭时会先询问，选定后记住',
+          action: SegmentedButton<WindowCloseBehavior>(
+            showSelectedIcon: false,
+            emptySelectionAllowed: !chosen,
+            segments: const [
+              ButtonSegment(
+                value: WindowCloseBehavior.exit,
+                label: Text('退出程序'),
+              ),
+              ButtonSegment(
+                value: WindowCloseBehavior.minimizeToTray,
+                label: Text('通知区'),
+              ),
+            ],
+            selected: chosen ? {behavior} : const <WindowCloseBehavior>{},
+            onSelectionChanged: _updating
+                ? null
+                : (value) => _setBehavior(value.first),
           ),
-        ],
-        selected: {settings.windowCloseBehavior},
-        onSelectionChanged: _updating
-            ? null
-            : (value) => _setBehavior(value.first),
-      ),
+        );
+      },
     );
   }
 }

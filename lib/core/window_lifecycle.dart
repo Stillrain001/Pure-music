@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:pure_music/core/hotkeys.dart';
 import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/core/memory_monitor.dart';
@@ -37,6 +38,9 @@ class WindowLifecycleService with WindowListener, TrayListener {
   Future<void> Function()? _disposeRuntimeResources;
 
   bool get isExiting => _isExiting;
+
+  /// 关闭选择变了之后，设置页靠这个刷新，不用整页重开。
+  final ValueNotifier<int> closeChoiceRevision = ValueNotifier<int>(0);
 
   Future<void> init({Future<void> Function()? disposeRuntimeResources}) async {
     _disposeRuntimeResources = disposeRuntimeResources;
@@ -247,6 +251,22 @@ class WindowLifecycleService with WindowListener, TrayListener {
     if (_isExiting || _closeRequestPending) return;
     _closeRequestPending = true;
     try {
+      if (!AppSettings.instance.windowCloseBehaviorChosen) {
+        final prompt = _promptCloseBehavior();
+        if (prompt != null) {
+          final WindowCloseBehavior? choice;
+          try {
+            choice = await prompt;
+          } catch (error, trace) {
+            log.window.warn('legacy', 'Close choice dialog failed: $error', stackTrace: trace);
+            return;
+          }
+          // 取消就留在窗口里，下次再问。没有界面可弹时不会进这里，沿用已保存的行为。
+          if (_isExiting || choice == null) return;
+          final saved = await _rememberCloseBehavior(choice);
+          if (!saved || _isExiting) return;
+        }
+      }
       if (AppSettings.instance.windowCloseBehavior ==
           WindowCloseBehavior.minimizeToTray) {
         final trayReady = await syncTrayIcon();
@@ -261,6 +281,40 @@ class WindowLifecycleService with WindowListener, TrayListener {
     } finally {
       _closeRequestPending = false;
     }
+  }
+
+  Future<WindowCloseBehavior?>? _promptCloseBehavior() {
+    final context = routerKey.currentContext;
+    if (context == null || !context.mounted) return null;
+    return showDialog<WindowCloseBehavior>(
+      context: context,
+      builder: (context) => const _CloseChoiceDialog(),
+    );
+  }
+
+  Future<bool> _rememberCloseBehavior(WindowCloseBehavior behavior) async {
+    final settings = AppSettings.instance;
+    final previous = settings.windowCloseBehavior;
+    final previousChosen = settings.windowCloseBehaviorChosen;
+    settings.windowCloseBehavior = behavior;
+    settings.windowCloseBehaviorChosen = true;
+    final trayUpdated = await syncTrayIcon();
+    if (!trayUpdated && behavior == WindowCloseBehavior.minimizeToTray) {
+      settings.windowCloseBehavior = previous;
+      settings.windowCloseBehaviorChosen = previousChosen;
+      await syncTrayIcon();
+      showTextOnSnackBar('通知区初始化失败', variant: ToastVariant.error);
+      return false;
+    }
+    if (!await settings.saveSettings()) {
+      settings.windowCloseBehavior = previous;
+      settings.windowCloseBehaviorChosen = previousChosen;
+      await syncTrayIcon();
+      showTextOnSnackBar('关闭行为保存失败', variant: ToastVariant.error);
+      return false;
+    }
+    closeChoiceRevision.value++;
+    return true;
   }
 
   void _cyclePlayMode() {
@@ -492,5 +546,32 @@ class WindowLifecycleService with WindowListener, TrayListener {
         exitApp();
         return;
     }
+  }
+}
+
+class _CloseChoiceDialog extends StatelessWidget {
+  const _CloseChoiceDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('关闭主窗口'),
+      content: const Text('要最小化到通知区继续播放，还是直接退出？\n选择会记住，之后也可以在设置里改。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, WindowCloseBehavior.exit),
+          child: const Text('退出程序'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, WindowCloseBehavior.minimizeToTray),
+          child: const Text('最小化到通知区'),
+        ),
+      ],
+    );
   }
 }
