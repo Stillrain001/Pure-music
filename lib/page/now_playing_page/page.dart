@@ -941,6 +941,9 @@ class _NowPlayingPlaybackModeSwitchState
         switch (playMode) {
           case PlayMode.forward:
           case PlayMode.loop:
+            playbackService.setPlayMode(PlayMode.listOnce);
+            break;
+          case PlayMode.listOnce:
             playbackService.setPlayMode(PlayMode.singleLoop);
             break;
           case PlayMode.singleLoop:
@@ -1009,7 +1012,10 @@ class _NowPlayingPlaybackModeSwitchState
     if (playMode == PlayMode.singleLoop) {
       return (text: '单曲循环', icon: Symbols.repeat_one);
     }
-    return (text: '顺序播放', icon: Symbols.repeat);
+    if (playMode == PlayMode.listOnce) {
+      return (text: '顺序播放', icon: Symbols.playlist_play);
+    }
+    return (text: '列表循环', icon: Symbols.repeat);
   }
 }
 

@@ -54,11 +54,11 @@ class PlayAll<T> extends StatelessWidget {
               playbackService.useShuffle(false);
               playbackService.setPlayMode(PlayMode.forward);
               playbackService.play(0, contentList as List<Audio>);
-              showTextOnSnackBar('已顺序播放', variant: ToastVariant.success);
+              showTextOnSnackBar('已列表循环', variant: ToastVariant.success);
             }
           : null,
       icon: const Icon(Symbols.play_arrow, size: 20),
-      label: const Text('顺序播放'),
+      label: const Text('列表循环'),
       style: const ButtonStyle(
         fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
         padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),

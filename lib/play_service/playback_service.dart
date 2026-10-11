@@ -922,6 +922,9 @@ class PlaybackService extends ChangeNotifier {
     return switch (playMode.value) {
       PlayMode.forward || PlayMode.loop => (currentIndex + 1) % items.length,
       PlayMode.singleLoop => currentIndex,
+      PlayMode.listOnce => currentIndex + 1 < items.length
+          ? currentIndex + 1
+          : null,
     };
   }
 
@@ -2025,6 +2028,20 @@ class PlaybackService extends ChangeNotifier {
         break;
       case PlayMode.singleLoop:
         _nextAudioSingleLoop(reason: 'completed', origin: origin);
+        break;
+      case PlayMode.listOnce:
+        // 末曲播完不推进，保持 completed 状态实现播完即停
+        if (_playlistIndex != null &&
+            _playlistIndex! + 1 < _playlist.value.length) {
+          _loadAndPlayInDirection(
+            reason: 'completed',
+            origin: origin,
+            startIndex: _playlistIndex! + 1,
+            playlist: _playlist.value,
+            step: 1,
+            wrap: false,
+          );
+        }
         break;
     }
   }

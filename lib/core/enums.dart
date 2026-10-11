@@ -95,7 +95,10 @@ enum PlayMode {
   loop,
 
   /// 循环播放单曲
-  singleLoop;
+  singleLoop,
+
+  /// 顺序播放，播完最后一曲停止，不回绕
+  listOnce;
 
   static PlayMode? fromString(String playMode) {
     for (var value in PlayMode.values) {

@@ -112,7 +112,8 @@ class WindowLifecycleService with WindowListener, TrayListener {
     return switch (true) {
       _ when shuffle => '随机播放',
       _ when playMode == PlayMode.singleLoop => '单曲循环',
-      _ => '顺序播放',
+      _ when playMode == PlayMode.listOnce => '顺序播放',
+      _ => '列表循环',
     };
   }
 
@@ -273,6 +274,9 @@ class WindowLifecycleService with WindowListener, TrayListener {
       switch (playMode) {
         case PlayMode.forward:
         case PlayMode.loop:
+          playback.setPlayMode(PlayMode.listOnce);
+          break;
+        case PlayMode.listOnce:
           playback.setPlayMode(PlayMode.singleLoop);
           break;
         case PlayMode.singleLoop:
