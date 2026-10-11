@@ -383,7 +383,7 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
                 child: Center(child: placeholder),
               ),
         const SizedBox(width: 8.0),
-        Expanded(child: _titles(scheme, nowPlaying, heroEnabled)),
+        Expanded(child: _titles(scheme, nowPlaying)),
       ],
     );
   }
@@ -401,7 +401,7 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
     return Hero(tag: nowPlaying.path, child: cover);
   }
 
-  Widget _titles(ColorScheme scheme, Audio? nowPlaying, bool heroEnabled) {
+  Widget _titles(ColorScheme scheme, Audio? nowPlaying) {
     return ListenableBuilder(
       listenable: Listenable.merge([
         ConcertSession.instance,
@@ -411,64 +411,45 @@ class _NowPlayingForegroundState extends State<_NowPlayingForeground> {
         final session = ConcertSession.instance;
         final index = PlayService.instance.playbackService.playlistIndex;
         final act = session.actAt(index);
-        final fly =
-            heroEnabled &&
-            nowPlaying != null &&
-            act == null &&
-            AppSettings.instance.enableNowPlayingOpenMotion;
         final color = scheme.onSecondaryContainer;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _flyingLabel(
+            _label(
               nowPlaying != null ? nowPlaying.title : 'Pure Music',
               color,
-              fly ? nowPlayingTitleHeroTag : null,
             ),
             nowPlaying == null
-                ? _flyingLabel('享受音乐', color, null)
+                ? _label('享受音乐', color)
                 : act != null
-                ? _flyingLabel(
+                ? _label(
                     '$act · ${index + 1}/${session.length} · ${nowPlaying.artist}',
                     color,
-                    null,
                   )
-                : _artistLine(nowPlaying, color, fly),
+                : _artistLine(nowPlaying, color),
           ],
         );
       },
     );
   }
 
-  Widget _artistLine(Audio nowPlaying, Color color, bool fly) {
+  Widget _artistLine(Audio nowPlaying, Color color) {
     final album = nowPlaying.album.trim();
     return Row(
       children: [
-        Flexible(
-          child: _flyingLabel(
-            nowPlaying.artist,
-            color,
-            fly ? nowPlayingArtistHeroTag : null,
-          ),
-        ),
-        if (album.isNotEmpty)
-          Flexible(child: _flyingLabel(' - $album', color, null)),
+        Flexible(child: _label(nowPlaying.artist, color)),
+        if (album.isNotEmpty) Flexible(child: _label(' - $album', color)),
       ],
     );
   }
 
-  Widget _flyingLabel(String text, Color color, String? heroTag) {
-    final label = Text(
+  Widget _label(String text, Color color) {
+    return Text(
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: color),
-    );
-    if (heroTag == null) return label;
-    return Hero(
-      tag: heroTag,
-      child: Material(type: MaterialType.transparency, child: label),
     );
   }
 

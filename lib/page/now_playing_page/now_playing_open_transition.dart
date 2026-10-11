@@ -1,28 +1,7 @@
 import 'package:flutter/material.dart';
 
-const nowPlayingTitleHeroTag = 'now-playing-title';
-const nowPlayingArtistHeroTag = 'now-playing-artist';
 const nowPlayingOpenCurve = Curves.easeOutCubic;
 const nowPlayingCloseCurve = Curves.easeInCubic;
-
-Widget nowPlayingTextFlight(
-  BuildContext flightContext,
-  Animation<double> animation,
-  HeroFlightDirection direction,
-  BuildContext fromContext,
-  BuildContext toContext,
-) {
-  final hero =
-      (direction == HeroFlightDirection.push
-              ? toContext.widget
-              : fromContext.widget)
-          as Hero;
-  return FittedBox(
-    fit: BoxFit.scaleDown,
-    alignment: Alignment.centerLeft,
-    child: hero.child,
-  );
-}
 
 class NowPlayingBarBounds {
   static final barKey = GlobalKey();
@@ -94,40 +73,43 @@ class _NowPlayingOpenTransitionState extends State<NowPlayingOpenTransition> {
         final t = _curved.value;
         final rect = Rect.lerp(begin, full, t)!;
         final radius = 8.0 * (1 - t);
-        final contentOpacity = const Interval(
-          0.18,
-          0.72,
-          curve: Curves.easeOutCubic,
+        final veil = const Interval(
+          0.0,
+          0.42,
+          curve: Curves.easeOut,
         ).transform(t);
         final scheme = Theme.of(context).colorScheme;
-        final shade = (1 - t).clamp(0.0, 1.0);
+        final shade = (1 - t).clamp(0.0, 1.0) * veil;
         return Stack(
           fit: StackFit.expand,
           clipBehavior: Clip.none,
           children: [
             Positioned.fromRect(
               rect: rect,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(radius),
-                  boxShadow: [
-                    for (final shadow in kElevationToShadow[4]!)
-                      BoxShadow(
-                        color: shadow.color.withValues(
-                          alpha: shadow.color.a * shade,
+              child: Opacity(
+                opacity: veil,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(radius),
+                    boxShadow: [
+                      for (final shadow in kElevationToShadow[4]!)
+                        BoxShadow(
+                          color: shadow.color.withValues(
+                            alpha: shadow.color.a * shade,
+                          ),
+                          offset: shadow.offset,
+                          blurRadius: shadow.blurRadius,
+                          spreadRadius: shadow.spreadRadius,
                         ),
-                        offset: shadow.offset,
-                        blurRadius: shadow.blurRadius,
-                        spreadRadius: shadow.spreadRadius,
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
             ClipPath(
               clipper: _NowPlayingOpenClipper(rect, radius),
-              child: Opacity(opacity: contentOpacity, child: child),
+              child: Opacity(opacity: veil, child: child),
             ),
           ],
         );

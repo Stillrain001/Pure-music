@@ -415,12 +415,6 @@ class _ImmersiveCoverThumbnailState extends State<_ImmersiveCoverThumbnail> {
   }
 }
 
-bool _portraitNameHero(Audio? nowPlaying) {
-  return nowPlaying != null &&
-      AppSettings.instance.enableNowPlayingOpenMotion &&
-      !PlayService.instance.playbackService.nowPlayingChangedRecently;
-}
-
 class _ImmersiveTitleText extends StatelessWidget {
   const _ImmersiveTitleText();
 
@@ -442,14 +436,7 @@ class _ImmersiveTitleText extends StatelessWidget {
             height: 1.2,
           ),
         );
-        if (!_portraitNameHero(nowPlaying)) return title;
-        return Hero(
-          tag: nowPlayingTitleHeroTag,
-          curve: nowPlayingOpenCurve,
-          reverseCurve: nowPlayingCloseCurve,
-          flightShuttleBuilder: nowPlayingTextFlight,
-          child: Material(type: MaterialType.transparency, child: title),
-        );
+        return title;
       },
     );
   }
@@ -475,14 +462,7 @@ class _ImmersiveArtistText extends StatelessWidget {
             height: 1.2,
           ),
         );
-        if (!_portraitNameHero(nowPlaying)) return artist;
-        return Hero(
-          tag: nowPlayingArtistHeroTag,
-          curve: nowPlayingOpenCurve,
-          reverseCurve: nowPlayingCloseCurve,
-          flightShuttleBuilder: nowPlayingTextFlight,
-          child: Material(type: MaterialType.transparency, child: artist),
-        );
+        return artist;
       },
     );
   }

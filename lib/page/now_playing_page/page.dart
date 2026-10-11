@@ -2690,9 +2690,6 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
               24,
               FontWeight.bold,
               textWidth,
-              heroTag: _textHero(heroEnabled, nowPlaying)
-                  ? nowPlayingTitleHeroTag
-                  : null,
             ),
             const SizedBox(height: 8),
             _infoText(
@@ -2701,20 +2698,11 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
               16,
               FontWeight.normal,
               textWidth,
-              heroTag: _textHero(heroEnabled, nowPlaying)
-                  ? nowPlayingArtistHeroTag
-                  : null,
             ),
           ],
         ),
       ),
     );
-  }
-
-  bool _textHero(bool heroEnabled, Audio? nowPlaying) {
-    return heroEnabled &&
-        nowPlaying != null &&
-        AppSettings.instance.enableNowPlayingOpenMotion;
   }
 
   double _textWidthFor(BoxConstraints constraints, double coverSize) {
@@ -2848,38 +2836,20 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
     Color color,
     double fontSize,
     FontWeight weight,
-    double width, {
-    String? heroTag,
-  }) {
-    final label = Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: color,
-        fontWeight: weight,
-        fontSize: fontSize,
-        height: 1.2,
-      ),
-    );
-    if (heroTag == null) return SizedBox(width: width, child: label);
+    double width,
+  ) {
     return SizedBox(
       width: width,
-      child: Align(
-        alignment: Alignment.center,
-        child: Hero(
-          tag: heroTag,
-          curve: nowPlayingOpenCurve,
-          reverseCurve: nowPlayingCloseCurve,
-          flightShuttleBuilder: nowPlayingTextFlight,
-          child: Material(
-            type: MaterialType.transparency,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: width),
-              child: label,
-            ),
-          ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: color,
+          fontWeight: weight,
+          fontSize: fontSize,
+          height: 1.2,
         ),
       ),
     );
