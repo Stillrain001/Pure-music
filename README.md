@@ -146,15 +146,24 @@ flutter_rust_bridge_codegen generate
 | 字体 | [Pretendard Variable](https://github.com/orioncactus/pretendard) |
 | 音频 | [BASS](https://www.un4seen.com/) |
 | 标签 | [lofty](https://github.com/Serial-ATA/lofty-rs) |
+| 歌词库 | [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) |
 | FFI | [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge) |
 | 起源 | [coriander_player](https://github.com/Ferry-200/coriander_player) |
 | 参考 | [ZeroBit-Player](https://github.com/Empty-57/ZeroBit-Player) · [Lyrico](https://github.com/Replica0110/Lyrico) · [original-sound-hq-player](https://github.com/Johnwikix/original-sound-hq-player) · [SPlayer](https://github.com/imsyy/SPlayer) · [Unilyric](https://github.com/apoint123/Unilyric) |
 
 ---
 
+## 特别感谢
+
+| | |
+|------|------|
+| muzi9527 | [L站链接](https://linux.do/u/muzi9527) |
+
+---
+
 ## 贡献者
 
-[![contrib.rocks](https://contrib.rocks/image?repo=qingyueyin/Pure-music&max=1000&v=2)](https://github.com/qingyueyin/Pure-music/graphs/contributors)
+[![contrib.rocks](https://contrib.rocks/image?repo=qingyueyin/Pure-music&max=1000&v=3)](https://github.com/qingyueyin/Pure-music/graphs/contributors)
 
 ---
 
