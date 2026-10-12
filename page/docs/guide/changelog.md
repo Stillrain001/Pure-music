@@ -437,38 +437,38 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 
 **歌词**
 
--   初步支持TTML格式歌词基础显示（agent对齐，bg段等等）
--   辉光缩放效果（实验性）
--   歌词容器/布局精简，横向歌词整合
--   修复内嵌逐字类型歌词间奏无法插入显示
+- 初步支持TTML格式歌词基础显示（agent对齐，bg段等等）
+- 辉光缩放效果（实验性）
+- 歌词容器/布局精简，横向歌词整合
+- 修复内嵌逐字类型歌词间奏无法插入显示
 
 **封面取色 / 主题**
 
--   修复切浅深模式封面种子色丢失
--   新增主题色控件开关——播放页控件图标可选 Material You 色
--   封面虚化改用定值 sigma + tileMode clamp
--   详情页封面模糊强度提高
+- 修复切浅深模式封面种子色丢失
+- 新增主题色控件开关——播放页控件图标可选 Material You 色
+- 封面虚化改用定值 sigma + tileMode clamp
+- 详情页封面模糊强度提高
 
 **文件夹管理**
 
--   文件夹选择/管理/详情页重构为 StatefulWidget，COM 安全释放
--   索引构建状态视图简化
+- 文件夹选择/管理/详情页重构为 StatefulWidget，COM 安全释放
+- 索引构建状态视图简化
 
 **重构 / 性能**
 
--   EqualizerService 解耦、MemoryMonitorService 提取
--   死代码清理（matcher/utils/menu styles）
--   封面缓存统一 SQLite
+- EqualizerService 解耦、MemoryMonitorService 提取
+- 死代码清理（matcher/utils/menu styles）
+- 封面缓存统一 SQLite
 
 **Rust**
 
--   NetEaseCloud 并发安全、tag_reader 子目录预计数与增量发现
--   system_volume COM 生命周期管理
+- NetEaseCloud 并发安全、tag_reader 子目录预计数与增量发现
+- system_volume COM 生命周期管理
 
 **已知问题**
 
--   内存~~泄漏~~优化（持续优化）
--   TTML 格式歌词显示效果（待完善）
+- 内存~~泄漏~~优化（持续优化）
+- TTML 格式歌词显示效果（待完善）
 
 </details>
 
@@ -477,40 +477,40 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 
 **性能**
 
-- **TextPainter 对象池**：最多复用 3 个，减少 GC 压力
-- **歌词行缓存**：`Painter`/`ImageFilter` 仅在参数变化时重建
-- **16ms 阈值**：播放进度变化超过 16ms 才触发 `setState`
-- **Ticker 优化**：`createTicker`/`stop` 替代 `initTicker`/`disposeTicker`，减少频繁创建
-- **空闲清理**：无活动 5 秒后清空对象池、缓存并重建
-- **Key**：`ValueKey` 避免歌词行重建，开启 `KeepAlive` 和 `RepaintBoundary`
-- **迷你播放栏**：监听范围从整个 `PlaybackService` 缩小到 `nowPlayingNotifier`
-- **绘制管线**：复用度量工具，预构建样式，批量绘制
-- **渐变调优**：feather 32→24px，alpha 0.48→0.65
+- TextPainter 对象池：最多复用 3 个，减少 GC 压力
+- 歌词行缓存：Painter/ImageFilter 仅在参数变化时重建
+- 16ms 阈值：播放进度变化超过 16ms 才触发 setState
+- Ticker 优化：createTicker/stop 替代 initTicker/disposeTicker，减少频繁创建
+- 空闲清理：无活动 5 秒后清空对象池、缓存并重建
+- Key：ValueKey 避免歌词行重建，开启 KeepAlive 和 RepaintBoundary
+- 迷你播放栏：监听范围从整个 PlaybackService 缩小到 nowPlayingNotifier
+- 绘制管线：复用度量工具，预构建样式，批量绘制
+- 渐变调优：feather 32→24px，alpha 0.48→0.65
 
 **歌词**
 
-- 删除 `LyricViewTile` 等组件（-939 行），渲染逻辑迁移到 `LyricsLinePainter`/`Widget`
+- 删除 LyricViewTile 等组件（-939 行），渲染逻辑迁移到 LyricsLinePainter/Widget
 - 注释未完成的歌词模式、注音、翻译等设置项
 
 **播放引擎**
 
-- 切歌时清理歌词缓存，主动 `notifyListeners()` 刷新 UI
+- 切歌时清理歌词缓存，主动 notifyListeners() 刷新 UI
 
-**封面取色/主题**
+**封面取色 / 主题**
 
 - 恢复 Material 3 默认颜色层级
-- 全局背景从 `surfaceContainer` 改为 `surfaceContainerLow`
+- 全局背景从 surfaceContainer 改为 surfaceContainerLow
 - 底部 sheet、侧边栏同步主题层级
 - 优化浅色模式下歌词能见度问题
 
-**UI/交互**
+**UI / 交互**
 
 - 修复搜索框、作者副标题、“Excl/Shrd”按钮在浅色模式的文字颜色
 - 间奏圆形：非 Material You 浅色模式改用黑色
 
 **Rust**
 
-- FLAC 元数据去重（`join_deduped`）
+- FLAC 元数据去重（join_deduped）
 
 **已知问题**
 
@@ -544,7 +544,7 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 **歌词**
 
 - **修复默认字体显示问题**：移除了部分位置的硬编码字体，从而修复字体过糊和锯齿问题
-- **歌词渲染新模式**：默认使用 `Paint` 歌词渲染， `Widget`模式会在`Paint`彻底完善后移除
+- **歌词渲染新模式**：默认使用 `Paint` 歌词渲染，`Widget` 模式会在 `Paint` 彻底完善后移除
 - **排版引擎重构**：fontFamily 动态传入、翻译/罗马音高度改用实际 `TextPainter` 测量、LRC 行支持 `┃` 分隔多段翻译
 - **歌词视图适配**：纵向/横向歌词对齐调整（0.5→0.35）、动态滚动时长、间奏空白行判定优化
 - **逐字歌词行切换错位修复**：`SyncLyricLine` 使用 `words.first.start` 替代 `line.start`
@@ -555,27 +555,27 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 **封面取色 / 主题**
 
 - **Rust k-means 取色替换**：移除 `palette_generator`，改用 Rust FFI 一次性提取完整调色板，速度大幅提升
-- **跨组件共享调色板**：`NowPlayingPage` 一次 Rust 调用提取，传递给背景/网格渐变等组件，避免重复解码
-- **自定义主题色**：新增 `enableCoverColorExtraction` 开关 + `customCoverColor` 设置项，关闭自动取色时可手动指定颜色
-- **HSV 色域选择器**：完整的 2D 色域 + 色相条 + Hex 输入对话框，支持精确选色
-- **迷你封面重构**：改用 `smallCoverBytes`，移除 `FutureBuilder`+`precache`，避免鼠标 hover 时因 rebuild 导致的闪烁
-- **Material 3 TextTheme 字体传播**：确保 `fontFamily` 向下传递到各 text style，歌词组件统一获取
+- **跨组件共享调色板**：一次提取，传给背景/网格渐变，避免重复解码
+- **自定义主题色**：新增 `enableCoverColorExtraction` 开关 + `customCoverColor`，关闭自动取色时可手动指定颜色
+- **HSV 色域选择器**：完整的 2D 色域 + 色相条 + Hex 输入
+- **迷你封面重构**：改用 `smallCoverBytes`，避免鼠标 hover 时闪烁
+- **Material 3 TextTheme 字体传播**：`fontFamily` 向下传递，歌词组件统一获取
 
 **性能**
 
-- **RSS 内存压力清理阈值调整**：三级阈值根据播放/非播放状态差异化设置，非播放时额外清理 `ImageCache`
-- **小封面字节 LRU 缓存**：硬上限 200（~1MB），`LinkedHashSet` 追踪访问顺序，超出时逐出最旧条目
-- **Rust 取色内存优化**：显式 `drop` 释放中间缓冲（原始字节、缩放图、RGBA、Lab），K-means 迭代参数调优（`max_iter=20→10`、`converge=5→8`、`runs=3→2`）
+- **RSS 内存压力清理**：播放/非播放阈值分开，非播放时额外清理 `ImageCache`
+- **小封面字节 LRU 缓存**：硬上限 200，超出逐出最旧
+- **Rust 取色内存优化**：释放中间缓冲，K-means 迭代参数调优
 
 **SMTC**
 
-- **生命周期增强**：`dispose()` 时先清除播放状态（`SetIsEnabled(false)` + `SetPlaybackStatus(Stopped)`）再关闭 `MediaPlayer`，消除异常退出残留
-- **启动占位**：初始化时设置标题"Pure Music"，覆盖上一进程残留的 SMTC 信息
+- 退出时先清除播放状态再关闭，消除异常退出残留
+- 启动时标题设为 Pure Music，覆盖上一进程残留
 
 **UI / 交互**
 
-- **欢迎页**：空文件夹时显示"跳过"按钮，直接进入主界面
-- **详情页封面模糊强度降低**：sigmaX/sigmaY 从 100 降至 40
+- 欢迎页空文件夹时显示「跳过」，直接进入主界面
+- 详情页封面模糊强度降低：sigma 从 100 降至 40
 
 **其它**
 
@@ -594,14 +594,12 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 <details>
 <summary><strong>2.1.0</strong></summary>
 
-**更新日志 v2.1.0**
-
 **歌词**
 
-- **三大网络歌词源重构**：搜索、获取、解析全链路重写，不再卡死，逐字/逐行/KRC/YRC 等格式精准识别
-- **本地歌词识别增强**：外置 `.lrc` 自动匹配、内嵌元数据提取、精准时间戳解析
+- **三大网络歌词源重构**：搜索、获取、解析全链路重写，不再卡死（#11），逐字/逐行/KRC/YRC 等格式精准识别
+- **本地歌词识别增强**：外置 `.lrc` 自动匹配（#10）、内嵌元数据提取、精准时间戳解析
 - **脏话还原**：被平台屏蔽为 `***` 的歌词还原为原始文本
-- **分组显示**：支持原文|翻译|罗马音的单独管理以及显示
+- **分组显示**：支持原文|翻译|罗马音的单独管理以及显示（#6）
 - **元数据自动过滤**：著作权声明、作词作曲等头部信息自动清洗，不再混入歌词行
 - **歌词滚动引擎重写**，集成视口策略与渐隐遮罩
 - **歌词行绘制引擎重写**，支持 Canvas 逐字渲染
@@ -660,7 +658,7 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 
 **待处理**
 
-- **内存泄漏** 
+- **内存泄漏**
 - **歌词文件读取**
 
 </details>
@@ -698,7 +696,7 @@ description: Pure Music 更新日志，自 2.0.0 起按版本折叠。
 
 **待处理**
 
-- **内存泄漏** 
+- **内存泄漏**
 - **歌词文件读取**
 
 </details>
