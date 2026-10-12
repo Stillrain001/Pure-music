@@ -13,6 +13,7 @@ description: 报告问题、提交代码或改文档。
 - 还不确定是不是程序问题，先到 [Discussions](https://github.com/qingyueyin/Pure-music/discussions/categories/general)
 - 能复现的异常，用 [Issue 模板](https://github.com/qingyueyin/Pure-music/issues/new/choose)
 - 「设置 → 关于 → 报告问题」会打开 Bug 表单并复制日志快照，粘贴到「完整日志」，不要用原始 `.log` 代替。见 [Issue 提交规范](https://github.com/qingyueyin/Pure-music/blob/main/.github/ISSUE_GUIDELINES.md)
+- 安全漏洞不要发到 Issue 或 Discussions。见 [报告安全漏洞](https://github.com/qingyueyin/Pure-music/blob/main/.github/SECURITY.md)
 
 ## 提交代码
 
