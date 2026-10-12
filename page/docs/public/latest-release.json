@@ -7,13 +7,13 @@
   "gitee_release_url": "https://gitee.com/qingyueyin/Pure-music/releases/tag/v2.3.1",
   "gitee_repo_url": "https://gitee.com/qingyueyin/Pure-music",
   "gitee_releases_url": "https://gitee.com/qingyueyin/Pure-music/releases",
-  "installer_url": "https://github.com/qingyueyin/Pure-music/releases/download/v2.3.1/pure_music_2.3.1_release_installer.exe",
-  "gitee_installer_url": "https://gitee.com/qingyueyin/Pure-music/releases/download/v2.3.1/pure_music_2.3.1_release_installer.exe",
-  "installer_name": "pure_music_2.3.1_release_installer.exe",
-  "installer_sha256": "e48564170cca23256d896e7b9dbf4e4ceabbc8a8efe535868a8f0d3e302408cd",
-  "installer_checksum_url": "https://github.com/qingyueyin/Pure-music/releases/download/v2.3.1/pure_music_2.3.1_release_installer.exe.sha256",
-  "gitee_installer_checksum_url": "https://gitee.com/qingyueyin/Pure-music/releases/download/v2.3.1/pure_music_2.3.1_release_installer.exe.sha256",
-  "installer_size": 35501592,
+  "installer_url": null,
+  "gitee_installer_url": null,
+  "installer_name": null,
+  "installer_sha256": null,
+  "installer_checksum_url": null,
+  "gitee_installer_checksum_url": null,
+  "installer_size": null,
   "portable_url": null,
   "gitee_portable_url": null,
   "portable_name": null,
@@ -22,5 +22,5 @@
   "gitee_portable_checksum_url": null,
   "portable_size": null,
   "gitee_may_lag": true,
-  "generated_at": "2026-10-12T23:47:20.826Z"
+  "generated_at": "2026-10-12T23:47:36.676Z"
 }
