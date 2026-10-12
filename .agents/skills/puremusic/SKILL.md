@@ -24,24 +24,17 @@ description: Pure-music 项目开发指南，覆盖 Windows Flutter/Dart 前端�
 
 ## 代码导航
 
-- 应用入口与路由：`lib/main.dart`、`lib/entry.dart`。
-- 全局设置与播放偏好：`lib/core/settings.dart`、`lib/core/preference.dart`。
-- 应用内快捷键与全局热键：`lib/core/hotkeys.dart`、`lib/core/hotkey_binding.dart`、`lib/page/settings_page/hotkey_settings.dart`；设置入口在「播放 → 应用内快捷键 / 全局热键」。
-- 主题与颜色：`lib/core/theme.dart`、`lib/core/color_extraction.dart`、`lib/core/desktop_lyric_colors.dart`；封面取色实现位于 `rust/src/api/color_extraction.rs`。
-- 歌词模型和解析：`lib/lyric/`；在线歌词获取与转换：`lib/services/online_lyric/`。
-- 播放页和歌词 UI：`lib/page/now_playing_page/`，组件集中在其 `component/` 目录。
-- 播放、歌词和桌面歌词服务：`lib/play_service/`；底层播放封装：`lib/native/bass/`。
-- 详情页播放入口：`lib/page/uni_detail_page.dart`、`lib/page/uni_page_components.dart`；顺序播放使用 `PlayAll`，随机播放使用 `ShufflePlay`，当前只有专辑详情页启用 `enablePlayAll`。
-- 播放页控件和歌词来源：`lib/page/now_playing_page/large_page.dart`、`small_page.dart`、`component/lyric_source_view.dart`；常驻控件设置由 `AppSettings.alwaysShowNowPlayingControls` 管理。
-- 桌面歌词过渡与高亮：`lib/play_service/lyric_service.dart`、`desktop_lyric_service.dart`；显示组件的换行和逐词高亮在 `pure-player-lyric` 仓库维护。
-- 演出模式：`lib/page/concert_page.dart`；节目单持久化在 `lib/services/concert_program_store.dart`，Dart 调用封装在 `lib/services/smart_sort_service.dart`，核心编排算法在 `rust/src/smart_sort/`。
-- 单曲标签和歌词编辑：`lib/page/audio_detail_page.dart`；LRC 序列化在 `lib/lyric/lrc_serializer.dart`，实际标签读写通过 Rust tag API 完成。
-- 任务栏缩略图与封面预览：`lib/play_service/taskbar_thumbnail_service.dart`、`windows/runner/taskbar_thumbnail.*`。
-- Dart FFI 绑定：`lib/native/rust/`；Rust API：`rust/src/api/`。
-- Windows 平台代码：`windows/`；独立桌面歌词模块：`desktop_lyric/`。
-- 项目文档：`page/docs/`；测试：`test/` 和 `integration_test/`。
+- 功能 → 核心文件全表见 [references/features-index.md](references/features-index.md)：20 类功能（播放、音频、曲库、歌词、桌面歌词、演出模式、统计、设置、系统集成、打包测试）逐条列出实现文件。定位代码先查它，不用扫目录；下面只留索引里没有的额外约定。
+- 应用内快捷键与全局热键：`lib/core/hotkeys.dart`、`lib/core/hotkey_binding.dart`、`lib/page/settings_page/hotkey_settings.dart`；设置入口在「设置 → 播放」。
+- 详情页播放动作：顺序播放 `PlayAll`、随机播放 `ShufflePlay`（`lib/page/uni_page_components.dart`），开关是 `enablePlayAll` / `enableShufflePlay`。专辑、歌手、文件夹、歌单详情页都会传入这两项。
+- 播放页控件常驻由 `AppSettings.alwaysShowNowPlayingControls` 控制，改动后调 `AppSettings.rebuildNotifier.rebuild()` 触发控件重建。
+- 桌面歌词：主进程 `lib/play_service/desktop_lyric_service.dart`，消息协议 `packages/desktop_lyric/`；歌词窗的换行与逐词高亮组件在外部 `pure-player-lyric` 仓库维护，本仓库 `desktop_lyric/` 只有预编译产物。
+- 任务栏缩略图播放按钮与 Alt+Tab 封面预览的原生实现在 `windows/runner/taskbar_thumbnail.*`。
+- Dart FFI 绑定：`lib/native/rust/`；Rust API：`rust/src/api/`；Windows 平台代码：`windows/`。
 
-涉及播放页样式、动画、播放进度、歌词跟随、频谱或动态背景时，编辑前完整阅读 [播放页性能规则](references/player-performance.md)。
+- 涉及播放页样式、动画、播放进度、歌词跟随、频谱或动态背景时，编辑前完整阅读 [播放页性能规则](references/player-performance.md)。
+- 负责拆任务、派给其他 agent、验收结果时，先读 [调度与做事方式](references/orchestration-playbook.md)。
+- 卡顿、掉帧、CPU/内存、扫库慢、FFI 开销时，先读 [同栈优化方案备忘](references/stack-perf-sources.md)（3.44 可用）。不要打开 `references/stack-perf-impeller-3.47.md`，那份在升级到 Flutter 3.47 前禁用。播放页每帧约束仍以播放页性能规则为准。
 
 ## 既有模式
 
@@ -67,9 +60,10 @@ description: Pure-music 项目开发指南，覆盖 Windows Flutter/Dart 前端�
 
 1. 复用仓库已有写法，注释只说明做了什么和为什么做，不写来源，不增加无意义的空行。
 2. 仅格式化本次修改的源文件；对改动范围执行静态分析，确保没有新增警告或错误。
-3. 除非用户明确要求，不主动运行完整构建或完整测试套件；未运行的验证项目如实说明，不把静态分析写成编译或性能结论。
-4. 完成后检查 `git diff --check`、相关 diff 和 `git status --short`，确认没有覆盖用户已有改动。
-5. 最终回复不超过 3 句，说明改了哪些文件、做了什么，以及实际执行的验证，不粘贴 diff。
+3. 改了解析、编排等纯逻辑时补对应单元测试（`test/`），先跑既有相关测试确认通过；并非每处小改动都必须补测试。
+4. 除非用户明确要求，不主动运行完整构建或完整测试套件；未运行的验证项目如实说明，不把静态分析写成编译或性能结论。
+5. 完成后检查 `git diff --check`、相关 diff 和 `git status --short`，确认没有覆盖用户已有改动。
+6. 最终回复不超过 3 句，说明改了哪些文件、做了什么，以及实际执行的验证，不粘贴 diff。
 
 ## 发布文档
 
