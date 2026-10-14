@@ -20,6 +20,7 @@ class AudioEchoLogRecorder {
   bool get isActive => _sink != null;
 
   IOSink? _sink;
+  bool _stopped = false;
   File? _file;
   String? _latestLogPath;
   Future<void> _writeQueue = Future.value();
@@ -56,11 +57,10 @@ class AudioEchoLogRecorder {
 
     final dir = await _ensureLogDir();
     final file = File('${dir.path}/audio_echo_${_fileSafeTs()}.log');
-    final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
-
     _file = file;
     _latestLogPath = file.path;
-    _sink = sink;
+    _stopped = false;
+    _sink = file.openWrite(mode: FileMode.writeOnlyAppend);
     _fullRecording = full;
     _lastFlushedRecord = null;
 
@@ -103,18 +103,18 @@ class AudioEchoLogRecorder {
     } catch (_) {}
     _flushLoggerMemoryDelta();
     _writeLine('RECORDER|stoppedAt=${DateTime.now().toIso8601String()}');
-
-    final sink = _sink!;
-    _sink = null;
-    _file = null;
-    _fullRecording = false;
+    _stopped = true;
     await _enqueueWrite(() async {
-      await sink.flush();
-      await sink.close();
+      await _sink?.flush();
+      await _sink?.close();
+      _sink = null;
+      _file = null;
+      _fullRecording = false;
     });
   }
 
   Future<void> flush() {
+    if (_stopped) return _writeQueue;
     _flushLoggerMemoryDelta();
     final sink = _sink;
     if (sink == null) return _writeQueue;
@@ -235,6 +235,7 @@ class AudioEchoLogRecorder {
   }
 
   void _writeLine(String line) {
+    if (_stopped) return;
     final sink = _sink;
     if (sink == null) return;
     final redacted = redactDiagnosticData(line);
