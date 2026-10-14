@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/preference.dart';
 
@@ -69,7 +71,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
     }
   }
 
-  void editPlaylist(BuildContext context, Playlist playlist) async {
+  Future<void> editPlaylist(BuildContext context, Playlist playlist) async {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => _EditPlaylistDialog(
@@ -402,7 +404,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
       isExporting: _isExportingPlaylist(playlists[i]),
       onOpen: () =>
           context.push(app_paths.PLAYLIST_DETAIL_PAGE, extra: playlists[i]),
-      onEdit: () => editPlaylist(context, playlists[i]),
+      onEdit: () => unawaited(editPlaylist(context, playlists[i])),
       onPickCover: () async {
         await showCoverPicker(context, playlists[i]);
         if (mounted) setState(() {});
@@ -1142,7 +1144,7 @@ class _PlaylistCoverState extends State<_PlaylistCover> {
     setState(() => _isPickingCover = true);
     try {
       await showCoverPicker(context, widget.playlist);
-      _load();
+      unawaited(_load());
     } finally {
       if (mounted) {
         setState(() => _isPickingCover = false);

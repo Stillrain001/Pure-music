@@ -288,13 +288,13 @@ CREATE TABLE IF NOT EXISTS meta (
 ''');
   }
 
-  static Map? _readMetaMap(Database db, String key) {
+  static Map<String, dynamic>? _readMetaMap(Database db, String key) {
     final rows = db.select('SELECT value FROM meta WHERE key = ?', [key]);
     if (rows.isEmpty) return null;
     final raw = rows.first['value'];
     if (raw is! String || raw.isEmpty) return null;
     final decoded = json.decode(raw);
-    return decoded is Map ? decoded : null;
+    return decoded is Map<String, dynamic> ? decoded : null;
   }
 
   static List<LastFmPendingScrobble> _readOutbox(Database db) {
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS meta (
     final result = <LastFmPendingScrobble>[];
     final seen = <String>{};
     for (final item in decoded) {
-      if (item is! Map) continue;
+      if (item is! Map<String, dynamic>) continue;
       final scrobble = LastFmPendingScrobble.fromMap(item);
       if (!scrobble.isValid || !seen.add(scrobble.id)) continue;
       result.add(scrobble);

@@ -13,7 +13,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> showFolderManagerDialog(BuildContext context) async {
-  await showDialog(
+  await showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (context) => const FolderManagerDialog(),

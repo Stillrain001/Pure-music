@@ -1259,7 +1259,7 @@ class _UniDetailPageHeader extends StatelessWidget {
 
   final String title;
   final String subtitle;
-  final MultiSelectController? multiSelectController;
+  final MultiSelectController<dynamic>? multiSelectController;
   final List<Widget> actions;
   final List<Widget>? multiSelectViewActions;
   final VoidCallback? onPicTap;

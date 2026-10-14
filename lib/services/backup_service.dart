@@ -272,14 +272,14 @@ List<Map<String, Object?>> _exportLyricSources(Database db) {
       .toList();
 }
 
-Map? _readMetaMap(Database db, String key) {
+Map<String, dynamic>? _readMetaMap(Database db, String key) {
   final rows = db.select('SELECT value FROM meta WHERE key = ?', [key]);
   if (rows.isEmpty) return null;
   final raw = rows.first['value'];
   if (raw is! String || raw.isEmpty) return null;
   try {
     final decoded = json.decode(raw);
-    return decoded is Map ? decoded : null;
+    return decoded is Map<String, dynamic> ? decoded : null;
   } catch (_) {
     return null;
   }
@@ -454,7 +454,7 @@ Future<void> _importPlayCountsCategory(
   final list = jsonDecode(utf8.decode(entry.content));
   if (list is! List) return;
   final playCountEntries = list
-      .whereType<Map>()
+      .whereType<Map<String, dynamic>>()
       .map(
         (m) => library_db.PlayCountEntry(
           path: _readString(m['path']) ?? '',
@@ -589,16 +589,22 @@ void _importPlaylistsRows(Database db, Archive archive, BackupImportMode mode) {
     db.execute('DELETE FROM playlists');
   }
   for (final item in decoded) {
-    if (item is! Map) continue;
+    if (item is! Map<String, dynamic>) continue;
     _importOnePlaylistRow(db, item, mode);
   }
 }
 
-void _importOnePlaylistRow(Database db, Map item, BackupImportMode mode) {
+void _importOnePlaylistRow(
+  Database db,
+  Map<String, dynamic> item,
+  BackupImportMode mode,
+) {
   final name = _readString(item['name']);
   if (name == null || name.isEmpty) return;
   final coverSource = _readString(item['coverSource']);
-  final items = item['items'] is List ? item['items'] as List : const [];
+  final items = item['items'] is List
+      ? item['items'] as List
+      : const <dynamic>[];
   final existing = db.select('SELECT id FROM playlists WHERE name = ?', [name]);
   int playlistId;
   if (existing.isNotEmpty) {
@@ -706,11 +712,11 @@ Future<void> _restoreExternalFiles(
   await _rewriteSettingsPaths(settingsFile, pathRewrites, transaction);
 }
 
-Map? _readSettingsMap(File settingsFile) {
+Map<String, dynamic>? _readSettingsMap(File settingsFile) {
   if (!settingsFile.existsSync()) return null;
   try {
     final decoded = jsonDecode(settingsFile.readAsStringSync());
-    return decoded is Map ? decoded : null;
+    return decoded is Map<String, dynamic> ? decoded : null;
   } catch (_) {
     return null;
   }
@@ -720,7 +726,7 @@ Future<Map<String, String>> _externalPathRewrites(
   Archive archive,
   Map<String, String> externalFiles,
   Directory externalRoot,
-  Map? settingsMap,
+  Map<String, dynamic>? settingsMap,
   BackupImportMode mode,
   BackupFileTransaction transaction,
 ) async {

@@ -48,7 +48,7 @@ Future<void> initWindow() async {
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
   );
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
+  unawaited(windowManager.waitUntilReadyToShow(windowOptions, () async {
     if (WindowLifecycleService.instance.isExiting) return;
     if (restorePosition != null) {
       await windowManager.setPosition(restorePosition);
@@ -61,7 +61,7 @@ Future<void> initWindow() async {
       if (WindowLifecycleService.instance.isExiting) return;
     }
     await windowManager.focus();
-  });
+  }));
 }
 
 Size _clampWindowSize(Size target, Size minimumSize, FlutterView view) {

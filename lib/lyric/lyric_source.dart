@@ -34,7 +34,7 @@ class LyricSource {
     this.localLyricPath,
   });
 
-  static LyricSource? fromMap(Map? map) {
+  static LyricSource? fromMap(Map<String, dynamic>? map) {
     if (map == null) return null;
     final source = _normalizedSourceName(map['source']);
     if (source == 'qq') {
@@ -73,7 +73,7 @@ class LyricSource {
     }
   }
 
-  Map toMap() {
+  Map<String, dynamic> toMap() {
     switch (source) {
       case LyricSourceType.qq:
         return {'source': source.name, 'id': qqSongId};
@@ -172,9 +172,9 @@ Map<String, LyricSource> _readLyricSourcesFromJson(File jsonFile) {
   if (decoded is! Map) return result;
 
   for (final item in decoded.entries) {
-    if (item.key is! String || item.value is! Map) continue;
+    if (item.key is! String || item.value is! Map<String, dynamic>) continue;
     final p = item.key as String;
-    final source = LyricSource.fromMap(item.value as Map);
+    final source = LyricSource.fromMap(item.value);
     if (source != null) {
       result[p] = source;
     }

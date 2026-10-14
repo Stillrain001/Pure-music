@@ -3,11 +3,17 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - bin/build_tool_runner.dart
-    - 原代码（请勿修改）/**
     - rust_builder/cargokit/build_tool/**
+    # FRB 生成代码，下次 generate 会覆盖，不手改也不拿来报警
+    - lib/native/rust/**
+  language:
+    # 外部 JSON 仍允许 dynamic 赋值。类型必须写明，不能靠裸 Map / List
+    strict-casts: false
+    strict-inference: true
+    strict-raw-types: true
   errors:
-    missing_required_param: warning
-    missing_return: warning
+    missing_required_param: error
+    missing_return: error
     todo: ignore
 
 linter:
@@ -24,3 +30,9 @@ linter:
     - prefer_is_not_empty
     - unnecessary_await_in_return
     - use_build_context_synchronously
+    - cancel_subscriptions
+    - close_sinks
+    - unawaited_futures
+    - avoid_void_async
+    # 外部 JSON 会直接读字段，生成绑定也是 dynamic，先保持关闭
+    - avoid_dynamic_calls: false

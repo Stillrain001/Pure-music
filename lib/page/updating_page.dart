@@ -150,7 +150,7 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
   IndexActionState? _latestAction;
   String? _errorMessage;
 
-  void whenIndexUpdated() async {
+  Future<void> whenIndexUpdated() async {
     if (_errorMessage != null) return;
     try {
       await Future.wait([
@@ -206,7 +206,7 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
               setState(() => _errorMessage = '音乐库索引失败，请查看日志');
             }
           },
-          onDone: whenIndexUpdated,
+          onDone: () => unawaited(whenIndexUpdated()),
           cancelOnError: true,
         );
   }

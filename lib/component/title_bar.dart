@@ -369,7 +369,7 @@ class _WindowControllsState extends State<WindowControlls> with WindowListener {
   }
 
   @override
-  void onWindowResized() async {
+  void onWindowResized() {
     super.onWindowResized();
     if (_isMaximized) return;
     // 移除强制窗口尺寸调整逻辑，允许用户自由调整窗口大小

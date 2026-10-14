@@ -202,8 +202,8 @@ class DesktopLyricService extends ChangeNotifier {
   PlaybackService get _playbackService => playService.playbackService;
 
   Process? _process;
-  StreamSubscription? _desktopLyricSubscription;
-  StreamSubscription? _stderrSubscription;
+  StreamSubscription<String>? _desktopLyricSubscription;
+  StreamSubscription<String>? _stderrSubscription;
   static const int _maxStdoutBufferSize = 65536;
   late final msg.MessageFrameDecoder _stdoutDecoder = msg.MessageFrameDecoder(
     maxBufferLength: _maxStdoutBufferSize,
@@ -254,7 +254,7 @@ class DesktopLyricService extends ChangeNotifier {
             expectedGeneration: generation,
           );
         })
-        .catchError((e) {
+        .catchError((Object e) {
           log.desktopLyric.warn(
             'legacy',
             '[desktop lyric] process exit monitoring error: $e',
@@ -302,7 +302,7 @@ class DesktopLyricService extends ChangeNotifier {
     _isStarting = true;
     if (_isKilling) {
       while (_isKilling) {
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
     }
     final desktopLyricPath = path.join(
@@ -420,7 +420,7 @@ class DesktopLyricService extends ChangeNotifier {
             );
           }
         })
-        .catchError((e) {
+        .catchError((Object e) {
           log.desktopLyric.warn(
             'legacy',
             '[desktop lyric] send queue error: $e',
@@ -450,7 +450,7 @@ class DesktopLyricService extends ChangeNotifier {
 
         if (!alreadyExited) {
           if (Platform.isWindows) {
-            Process.run('taskkill', [
+            await Process.run('taskkill', [
               '/pid',
               '${process.pid}',
               '/f',
@@ -853,7 +853,7 @@ class DesktopLyricService extends ChangeNotifier {
 
   void _handleDesktopLyricMessage(String raw) {
     try {
-      final Map messageMap = json.decode(raw);
+      final Map<String, dynamic> messageMap = json.decode(raw);
       final String messageType = messageMap['type'];
       final messageContent = messageMap['message'] as Map<String, dynamic>;
       if (messageType == msg.getMessageTypeName<msg.UnlockMessage>()) {

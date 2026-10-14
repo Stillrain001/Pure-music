@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:github/github.dart' as gh;
 import 'package:material_symbols_icons/symbols.dart';
@@ -336,10 +338,12 @@ class _AboutVersionItemState extends State<_AboutVersionItem> {
 
       if (newest != null &&
           UpdateChecker.hasNewVersion(newest.tagName, AppSettings.version)) {
-        showDialog(
-          context: context,
-          builder: (context) =>
-              NewestUpdateView(info: newest, channel: channel),
+        unawaited(
+          showDialog<void>(
+            context: context,
+            builder: (context) =>
+                NewestUpdateView(info: newest, channel: channel),
+          ),
         );
       } else {
         showTextOnSnackBar('无新版本');

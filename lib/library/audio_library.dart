@@ -114,7 +114,8 @@ Audio _audioFromIndex(library_db.IndexAudio audio, _AudioLoadPool pool) =>
       playCount: audio.playCount,
     );
 
-Audio _audioFromMap(Map map, _AudioLoadPool pool) => Audio._fromLoaded(
+Audio _audioFromMap(Map<String, dynamic> map, _AudioLoadPool pool) =>
+    Audio._fromLoaded(
   map['title'] ?? '',
   map['artist'] ?? '',
   map['album'] ?? '',
@@ -371,7 +372,7 @@ Future<_FolderConversionResult> _convertSqliteFolders(
 }
 
 Future<_FolderConversionResult> _convertJsonFolders(
-  List foldersJson, {
+  List<dynamic> foldersJson, {
   required int objectBatchSize,
 }) async {
   final conversionStopwatch = Stopwatch()..start();
@@ -379,11 +380,11 @@ Future<_FolderConversionResult> _convertJsonFolders(
   final loadPool = _AudioLoadPool();
   var convertedAudioCount = 0;
   for (final folderMap in foldersJson) {
-    final map = folderMap as Map;
-    final List audiosJson = map['audios'];
+    final map = folderMap as Map<String, dynamic>;
+    final List<dynamic> audiosJson = map['audios'];
     final converted = await _fillConvertedAudios<dynamic>(
       audiosJson,
-      (source, pool) => _audioFromMap(source as Map, pool),
+      (source, pool) => _audioFromMap(source as Map<String, dynamic>, pool),
       loadPool,
       convertedAudioCount: convertedAudioCount,
       objectBatchSize: objectBatchSize,
@@ -657,11 +658,11 @@ class AudioLibrary {
     var indexStr = await File(indexPath).readAsString();
     jsonReadStopwatch.stop();
     final jsonDecodeStopwatch = Stopwatch()..start();
-    final Map indexJson = json.decode(indexStr);
+    final Map<String, dynamic> indexJson = json.decode(indexStr);
     indexStr = '';
     jsonDecodeStopwatch.stop();
     final rssAfterDecode = ProcessInfo.currentRss;
-    final List foldersJson = indexJson['folders'];
+    final List<dynamic> foldersJson = indexJson['folders'];
     final converted = await _convertJsonFolders(
       foldersJson,
       objectBatchSize: objectBatchSize,
@@ -2484,7 +2485,8 @@ class AudioFolder {
   /// 展示名：别名优先，否则目录名
   String get displayName => alias ?? p.basename(path);
 
-  factory AudioFolder.fromMap(Map map, List<Audio> audios) => AudioFolder(
+  factory AudioFolder.fromMap(Map<String, dynamic> map, List<Audio> audios) =>
+      AudioFolder(
     audios,
     map['path'] ?? '',
     map['modified'] ?? 0,
@@ -2736,7 +2738,7 @@ class Audio {
       listEquals(splitedArtists, other.splitedArtists) &&
       listEquals(splitedAlbumArtists, other.splitedAlbumArtists);
 
-  factory Audio.fromMap(Map map) => Audio(
+  factory Audio.fromMap(Map<String, dynamic> map) => Audio(
     map['title'] ?? '',
     map['artist'] ?? '',
     map['album'] ?? '',
@@ -2753,7 +2755,7 @@ class Audio {
     playCount: map['play_count'] ?? 0,
   );
 
-  Map toMap() => {
+  Map<String, dynamic> toMap() => {
     'title': title,
     'artist': artist,
     'album': album,

@@ -754,7 +754,7 @@ Future<Lyric?> _fetchLyricInternal({
 
   // Run all sources in parallel, each with error isolation
   final wrapped = futures.map(
-    (f) => f.catchError((e) {
+    (f) => f.catchError((Object e) {
       log.onlineLyric.error('legacy', 'Source failed: ${e.runtimeType}');
       return null;
     }),

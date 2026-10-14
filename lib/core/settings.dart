@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:pure_music/core/hotkey_binding.dart';
@@ -178,7 +179,8 @@ Future<void> _writeQueuedTextFile({
     await _writeTextFileAtomicallyNow(filePath, content);
   } finally {
     if (identical(_atomicWriteQueues[queueKey], current())) {
-      _atomicWriteQueues.remove(queueKey);
+      final removed = _atomicWriteQueues.remove(queueKey);
+      if (removed != null) unawaited(removed);
     }
   }
 }
@@ -395,7 +397,7 @@ class AppSettings {
 
   AppSettings._();
 
-  static Future<void> _readFromJsonOld(Map settingsMap) async {
+  static Future<void> _readFromJsonOld(Map<String, dynamic> settingsMap) async {
     _readThemeMotionHotkeySettings(settingsMap);
     _readBackgroundGlassSettings(settingsMap);
     _readLegacyArtistSeparator(settingsMap);
@@ -403,7 +405,7 @@ class AppSettings {
     _readWindowPlaybackSettings(settingsMap);
   }
 
-  static void _readLegacyArtistSeparator(Map settingsMap) {
+  static void _readLegacyArtistSeparator(Map<String, dynamic> settingsMap) {
     final oldSep = settingsMap['ArtistSeparator'];
     if (oldSep != null) {
       _instance.artistSeparator = normalizedArtistSeparators(oldSep);
@@ -412,10 +414,10 @@ class AppSettings {
   }
 
   @visibleForTesting
-  static Future<void> readFromSettingsMapForTest(Map settingsMap) =>
+  static Future<void> readFromSettingsMapForTest(Map<String, dynamic> settingsMap) =>
       _readFromSettingsMap(settingsMap);
 
-  static Future<void> _readFromSettingsMap(Map settingsMap) async {
+  static Future<void> _readFromSettingsMap(Map<String, dynamic> settingsMap) async {
     if (settingsMap['Version'] == null) {
       return _readFromJsonOld(settingsMap);
     }
@@ -435,7 +437,7 @@ class AppSettings {
     _readFontSettings(settingsMap);
   }
 
-  static void _readThemeMotionHotkeySettings(Map settingsMap) {
+  static void _readThemeMotionHotkeySettings(Map<String, dynamic> settingsMap) {
     final to = settingsMap['ThemeOption'];
     if (to != null) {
       _instance.themeOption = normalizedThemeOption(to);
@@ -484,7 +486,7 @@ class AppSettings {
     _instance.globalHotkeys = decodeGlobalHotkeys(settingsMap['GlobalHotkeys']);
   }
 
-  static void _readLyricPreferenceSettings(Map settingsMap) {
+  static void _readLyricPreferenceSettings(Map<String, dynamic> settingsMap) {
     final sep = settingsMap['ArtistSeparator'];
     if (sep != null) {
       _instance.artistSeparator = normalizedArtistSeparators(sep);
@@ -545,7 +547,7 @@ class AppSettings {
     }
   }
 
-  static void _readLyricConversionAndDelaySettings(Map settingsMap) {
+  static void _readLyricConversionAndDelaySettings(Map<String, dynamic> settingsMap) {
     final zcm = settingsMap['ZhConversionMode'];
     if (zcm != null) {
       final modeName = normalizedSettingEnumName(zcm);
@@ -600,7 +602,7 @@ class AppSettings {
     );
   }
 
-  static void _readLyricTagSettings(Map settingsMap) {
+  static void _readLyricTagSettings(Map<String, dynamic> settingsMap) {
     final ltwf = settingsMap['LyricTagWordFormat'];
     if (ltwf != null) {
       _instance.lyricTagWordFormat = normalizedSettingEnumValue(
@@ -635,7 +637,7 @@ class AppSettings {
     }
   }
 
-  static void _readMaterialScrobbleSettings(Map settingsMap) {
+  static void _readMaterialScrobbleSettings(Map<String, dynamic> settingsMap) {
     final umyl = settingsMap['UseMaterialYouForLyrics'];
     if (umyl != null) {
       _instance.useMaterialYouForLyrics = normalizedBoolSetting(
@@ -685,7 +687,7 @@ class AppSettings {
     }
   }
 
-  static void _readCoverColorSettings(Map settingsMap) {
+  static void _readCoverColorSettings(Map<String, dynamic> settingsMap) {
     final tbla = settingsMap['TopBarLyricAnimation'];
     if (tbla != null) {
       final storedName = normalizedSettingEnumName(tbla);
@@ -733,7 +735,7 @@ class AppSettings {
     }
   }
 
-  static void _readBackgroundGlassSettings(Map settingsMap) {
+  static void _readBackgroundGlassSettings(Map<String, dynamic> settingsMap) {
     _instance.appBackgroundImagePath = normalizedPathSetting(
       settingsMap['AppBackgroundImagePath'],
     );
@@ -767,7 +769,7 @@ class AppSettings {
     );
   }
 
-  static void _readWindowPlaybackSettings(Map settingsMap) {
+  static void _readWindowPlaybackSettings(Map<String, dynamic> settingsMap) {
     final sizeStr = settingsMap['WindowSize'];
     if (sizeStr != null) {
       final size = normalizedWindowSizeSetting(sizeStr);
@@ -812,7 +814,7 @@ class AppSettings {
     );
   }
 
-  static void _readDesktopLyricVisibilitySettings(Map settingsMap) {
+  static void _readDesktopLyricVisibilitySettings(Map<String, dynamic> settingsMap) {
     final sdlr = settingsMap['ShowDesktopLyricRoman'];
     if (sdlr != null) {
       _instance.showDesktopLyricRoman = normalizedBoolSetting(
@@ -858,7 +860,7 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricBehaviorSettings(Map settingsMap) {
+  static void _readDesktopLyricBehaviorSettings(Map<String, dynamic> settingsMap) {
     final dhop = settingsMap['DesktopHideOnPause'];
     if (dhop != null) {
       _instance.desktopHideOnPause = normalizedBoolSetting(
@@ -900,7 +902,7 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricLayoutSettings(Map settingsMap) {
+  static void _readDesktopLyricLayoutSettings(Map<String, dynamic> settingsMap) {
     final dvu = settingsMap['DesktopUseVerticalDisplayMode'];
     if (dvu != null) {
       _instance.desktopUseVerticalDisplayMode = normalizedBoolSetting(
@@ -937,7 +939,7 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricTypographySettings(Map settingsMap) {
+  static void _readDesktopLyricTypographySettings(Map<String, dynamic> settingsMap) {
     final dls = settingsMap['DesktopLyricFontSize'];
     if (dls != null) {
       _instance.desktopLyricFontSize = (dls as num).clamp(12, 60).toDouble();
@@ -985,7 +987,7 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricColorSettings(Map settingsMap) {
+  static void _readDesktopLyricColorSettings(Map<String, dynamic> settingsMap) {
     _instance.desktopLyricAnimation =
         DesktopLyricAnimation.fromString(
           settingsMap['DesktopLyricAnimation']?.toString() ?? '',
@@ -1031,7 +1033,7 @@ class AppSettings {
         DesktopLyricBrightnessMode.follow;
   }
 
-  static void _readFontSettings(Map settingsMap) {
+  static void _readFontSettings(Map<String, dynamic> settingsMap) {
     final ff = settingsMap['FontFamily'];
     final fp = settingsMap['FontPath'];
     if (ff != null || fp != null) {
@@ -1076,7 +1078,7 @@ class AppSettings {
       final settingsPath = path.join(dir.path, 'settings.json');
 
       final settingsStr = File(settingsPath).readAsStringSync();
-      Map settingsMap = json.decode(settingsStr);
+      Map<String, dynamic> settingsMap = json.decode(settingsStr);
       await _readFromSettingsMap(settingsMap);
     } catch (err, trace) {
       log.settings.error('legacy', err.toString(), stackTrace: trace);

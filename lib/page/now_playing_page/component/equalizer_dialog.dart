@@ -394,7 +394,7 @@ class _EqualizerDialogState extends State<EqualizerDialog> {
   void _savePreset() {
     final controller = TextEditingController();
     var isSaving = false;
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => _savePresetDialog(

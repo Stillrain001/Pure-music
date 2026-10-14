@@ -65,14 +65,14 @@ class Krc extends Lyric {
     }
 
     if (languageFrame != null) {
-      final Map languageMap =
+      final Map<String, dynamic> languageMap =
           json.decode(utf8.decode(base64.decode(languageFrame)));
       List<String> trans = [];
       List<String> romas = [];
       for (var item in languageMap['content']) {
         if (item['type'] == 1) {
-          final List transContent = item['lyricContent'];
-          for (List transLine in transContent) {
+          final List<dynamic> transContent = item['lyricContent'];
+          for (final List<dynamic> transLine in transContent) {
             final text = transLine.first;
             // 过滤元数据行（作曲、作词、编曲等）
             if (!_isMetadataLine(text)) {
@@ -81,8 +81,8 @@ class Krc extends Lyric {
           }
         } else if (item['type'] == 0) {
           // type=0 是注音（罗马音），使用 join 合并数组中的单个字符
-          final List romaContent = item['lyricContent'];
-          for (List romaLine in romaContent) {
+          final List<dynamic> romaContent = item['lyricContent'];
+          for (final List<dynamic> romaLine in romaContent) {
             romas.add(romaLine.join());
           }
         }

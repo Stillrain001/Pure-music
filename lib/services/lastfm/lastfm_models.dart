@@ -46,7 +46,7 @@ class LastFmCredentials {
     'pendingToken': pendingToken,
   };
 
-  factory LastFmCredentials.fromMap(Map? map) {
+  factory LastFmCredentials.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const LastFmCredentials();
     return LastFmCredentials(
       apiKey: _trimmed(map['apiKey']),
@@ -98,7 +98,7 @@ class LastFmPendingScrobble {
     'startedAt': startedAt,
   };
 
-  factory LastFmPendingScrobble.fromMap(Map map) {
+  factory LastFmPendingScrobble.fromMap(Map<String, dynamic> map) {
     return LastFmPendingScrobble(
       id: _trimmed(map['id']),
       artist: _trimmed(map['artist']),

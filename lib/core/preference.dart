@@ -62,7 +62,7 @@ class EqPreset {
     return map;
   }
 
-  factory EqPreset.fromMap(Map map) {
+  factory EqPreset.fromMap(Map<String, dynamic> map) {
     final storedVersion = _normalizedBoundedInt(
       map['eqBandModelVersion'],
       defaultValue: legacyEqBandModelVersion,
@@ -105,7 +105,7 @@ List<EqPreset> _eqPresetsFromStoredValue(Object? value) {
 }
 
 EqPreset? _eqPresetFromStoredValue(Object? value) {
-  if (value is! Map) return null;
+  if (value is! Map<String, dynamic>) return null;
   final name = value['name'];
   if (name is! String) return null;
   return EqPreset.fromMap(value);
@@ -248,7 +248,7 @@ PlayMode? _playModeFromStoredValue(Object? value) {
   return name == null ? null : PlayMode.fromString(name);
 }
 
-TransitionMode _transitionModeFromStored(Map map) {
+TransitionMode _transitionModeFromStored(Map<String, dynamic> map) {
   final stored = map['transitionMode'];
   if (stored is String) {
     final parsed = TransitionMode.fromString(stored);

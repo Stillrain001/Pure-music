@@ -394,7 +394,7 @@ typedef _ChannelAssetUrls = ({String? github, String? gitee});
 List<Map<String, dynamic>> _releaseAssets(Object? value) {
   if (value is! Iterable) return const [];
   return value
-      .whereType<Map>()
+      .whereType<Map<String, dynamic>>()
       .map((asset) => Map<String, dynamic>.from(asset))
       .toList(growable: false);
 }

@@ -104,7 +104,7 @@ Future<T> _qqFirstNonEmpty<T>({
 String _kgNormalizeCover(String url) =>
     url.replaceFirst('{size}', '480').replaceFirst('http:', 'https:');
 
-String _kgCoverUrl(Map item, List? groupList) {
+String _kgCoverUrl(Map<String, dynamic> item, List<dynamic>? groupList) {
   // 1) fallback 接口字段：item['Image']
   final imgRaw = item['Image']?.toString() ?? '';
   if (imgRaw.isNotEmpty) return _kgNormalizeCover(imgRaw);
@@ -204,7 +204,7 @@ Future<List<dynamic>> _kgSignedSearch(
     final lists = data['data']?['lists'];
     if (lists is! List) return [];
     return lists
-        .whereType<Map>()
+        .whereType<Map<String, dynamic>>()
         .map((item) => _kgNormalizeSignedItem(item))
         .toList();
   } catch (_) {
@@ -212,8 +212,10 @@ Future<List<dynamic>> _kgSignedSearch(
   }
 }
 
-Map<String, dynamic> _kgNormalizeSignedItem(Map item) {
-  final singers = item['Singers'] is List ? item['Singers'] as List : [];
+Map<String, dynamic> _kgNormalizeSignedItem(Map<String, dynamic> item) {
+  final singers = item['Singers'] is List
+      ? item['Singers'] as List
+      : <dynamic>[];
   final artist = singers
       .map((s) => s is Map ? (s['name'] ?? s['Name'] ?? '') : '')
       .where((s) => s.toString().isNotEmpty)
@@ -269,7 +271,7 @@ Future<String?> _kgFallbackBody(Map<String, dynamic> params) {
 }
 
 String _kgField(
-  Map item,
+  Map<String, dynamic> item,
   bool fallback,
   String fallbackKey,
   String primaryKey, [
@@ -280,7 +282,7 @@ String _kgField(
 }
 
 Map<String, dynamic>? _kgNormalizeFallbackItem(
-  Map item,
+  Map<String, dynamic> item,
   bool useFallbackShape,
 ) {
   final groupList = item['group'] is List ? item['group'] as List : null;
@@ -354,7 +356,7 @@ Future<List<dynamic>> _kgSearchFallbackResults(
     if (songList is! List) return [];
     final normalized = <Map<String, dynamic>>[];
     for (final rawItem in songList) {
-      if (rawItem is! Map) continue;
+      if (rawItem is! Map<String, dynamic>) continue;
       final result = _kgNormalizeFallbackItem(rawItem, useFallbackShape);
       if (result != null) normalized.add(result);
     }
@@ -495,7 +497,7 @@ Future<List<dynamic>> _neSearchInIsolate(Map<String, dynamic> params) async {
       String? artist;
       if (artistList is List && artistList.isNotEmpty) {
         artist = artistList
-            .whereType<Map>()
+            .whereType<Map<String, dynamic>>()
             .map((a) => a['name']?.toString())
             .whereType<String>()
             .where((name) => name.isNotEmpty)
@@ -689,7 +691,7 @@ List<dynamic> _qqSearchParseBody(String? body) {
     final Map<String, dynamic> data = jsonDecode(body);
     final songList = _qqSearchRawSongs(data);
     if (songList == null) return [];
-    return songList.whereType<Map>().map((item) {
+    return songList.whereType<Map<String, dynamic>>().map((item) {
       final singerList = item['singer'] as List?;
       String? singer;
       if (singerList != null && singerList.isNotEmpty) {

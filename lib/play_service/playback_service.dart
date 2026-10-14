@@ -51,10 +51,10 @@ final class _PendingGaplessTransition {
 class PlaybackService extends ChangeNotifier {
   final PlayService playService;
 
-  late StreamSubscription _playerStateStreamSub;
+  late StreamSubscription<PlayerState> _playerStateStreamSub;
   late StreamSubscription<GaplessTransition> _gaplessTransitionStreamSub;
-  late StreamSubscription _smtcEventStreamSub;
-  late StreamSubscription _smtcPositionChangeStreamSub;
+  late StreamSubscription<SMTCControlEvent> _smtcEventStreamSub;
+  late StreamSubscription<int> _smtcPositionChangeStreamSub;
   int _lastNowPlayingChangedMs = 0;
   Timer? _smtcPositionTimer;
   Timer? _smtcKeepAliveTimer;
@@ -1873,7 +1873,7 @@ class PlaybackService extends ChangeNotifier {
   Future<bool> _waitForLibraryAudios() async {
     for (int i = 0; i < 10; i++) {
       if (AudioLibrary.instance.audioCollection.isNotEmpty) return true;
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     }
     return AudioLibrary.instance.audioCollection.isNotEmpty;
   }
@@ -2159,7 +2159,7 @@ class PlaybackService extends ChangeNotifier {
       _player.pause();
     } catch (_) {}
     final smtcCancels = await _cancelPlaybackSubscriptions();
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     await _closeSmtc(smtcCancels);
     _disposePlaybackNotifiers();
     try {

@@ -515,9 +515,9 @@ class WindowLifecycleService with WindowListener, TrayListener {
       case 'toggle_desktop_lyric':
         final desktopLyric = PlayService.instance.desktopLyricService;
         if (desktopLyric.isRunning) {
-          desktopLyric.killDesktopLyric();
+          await desktopLyric.killDesktopLyric();
         } else {
-          desktopLyric.startDesktopLyric();
+          await desktopLyric.startDesktopLyric();
         }
         return;
       case 'unlock_desktop_lyric':
@@ -543,7 +543,7 @@ class WindowLifecycleService with WindowListener, TrayListener {
         PlayService.instance.playbackService.nextAudio();
         return;
       case 'exit_app':
-        exitApp();
+        await exitApp();
         return;
     }
   }

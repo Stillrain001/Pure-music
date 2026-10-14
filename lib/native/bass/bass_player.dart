@@ -241,7 +241,7 @@ class BassPlayer {
   int _transitionGeneration = 0;
 
   /// 独占模式状态变化回调
-  Function(bool)? onExclusiveModeChanged;
+  void Function(bool)? onExclusiveModeChanged;
 
   /// 同步阻塞 Sleep 函数（Windows kernel32.dll）
   void Function(int milliseconds)? _windowsSleep;

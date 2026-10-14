@@ -194,7 +194,7 @@ Future<NetLyricResult?> qqGetLyricById({required int id}) async {
 // 网易云
 // ──────────────────────────────────────────────
 
-NeSearchItem? _neSearchItemFromMap(Map item) {
+NeSearchItem? _neSearchItemFromMap(Map<String, dynamic> item) {
   final id = item['id']?.toString() ?? '';
   if (id.isEmpty) return null;
   final durationRaw = item['dt'];
@@ -245,7 +245,7 @@ Future<List<NeSearchItem>> _neSearchViaPublicApi({
     timeout: timeout,
   );
   return rawResults
-      .map((e) => _neSearchItemFromMap(e as Map))
+      .map((e) => _neSearchItemFromMap(e as Map<String, dynamic>))
       .whereType<NeSearchItem>()
       .toList();
 }

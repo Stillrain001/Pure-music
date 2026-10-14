@@ -19,7 +19,7 @@ class ArtistSeparatorEditor extends StatelessWidget {
         icon: const Icon(Symbols.edit),
         label: const Text('编辑分隔符'),
         onPressed: () {
-          showDialog(
+          showDialog<void>(
             context: context,
             builder: (context) => const _ArtistSeparatorEditDialog(),
           );

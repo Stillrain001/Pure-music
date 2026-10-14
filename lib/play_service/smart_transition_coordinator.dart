@@ -384,9 +384,8 @@ final class SmartTransitionCoordinator {
         stackTrace: trace,
       );
     }
-    final subscription = _eventSubscription;
+    await _eventSubscription?.cancel();
     _eventSubscription = null;
-    await subscription?.cancel();
   }
 
   Future<void> _analyzeOutgoing(_PendingSmartTransition pending) async {

@@ -74,7 +74,7 @@ class AudioTile extends StatefulWidget {
   final Widget? leading;
   final double leadingWidth;
   final Widget? action;
-  final MultiSelectController? multiSelectController;
+  final MultiSelectController<Audio>? multiSelectController;
   final FutureOr<void> Function(Audio audio)? onRemoveFromPlaylist;
 
   @override

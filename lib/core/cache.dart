@@ -71,9 +71,11 @@ class AlbumColorCache {
 
     final fut = _computeAndStore(album, key: key, signature: signature);
     _inFlight[key] = fut;
-    fut.whenComplete(() {
-      _inFlight.remove(key);
-    });
+    unawaited(
+      fut.whenComplete(() {
+        _inFlight.remove(key);
+      }),
+    );
     return fut;
   }
 
@@ -671,7 +673,8 @@ class CoverImageCache {
       return result;
     } finally {
       if (identical(_pending[key], future)) {
-        _pending.remove(key);
+        final removed = _pending.remove(key);
+        if (removed != null) unawaited(removed);
       }
     }
   }
@@ -861,7 +864,8 @@ class CoverImageCache {
       return result;
     } finally {
       if (identical(_pendingBytes[key], future)) {
-        _pendingBytes.remove(key);
+        final removed = _pendingBytes.remove(key);
+        if (removed != null) unawaited(removed);
       }
     }
   }

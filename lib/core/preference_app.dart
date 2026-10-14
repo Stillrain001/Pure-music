@@ -112,9 +112,9 @@ class AppPreference {
   }
 
   /// 上次读取的原始 JSON，保存时保留未知字段
-  Map? _rawPrefMap;
+  Map<String, dynamic>? _rawPrefMap;
 
-  void applyStoredMap(Map prefMap) {
+  void applyStoredMap(Map<String, dynamic> prefMap) {
     _rawPrefMap = prefMap;
     _applyPagePrefs(prefMap);
     _applyChromePrefs(prefMap);
@@ -123,7 +123,7 @@ class AppPreference {
     _applyFolderPrefs(prefMap);
   }
 
-  void _applyPagePrefs(Map prefMap) {
+  void _applyPagePrefs(Map<String, dynamic> prefMap) {
     audiosPagePref = PagePreference.fromMap(prefMap['audiosPagePref']);
     artistsPagePref = PagePreference.fromMap(prefMap['artistsPagePref']);
     artistDetailPagePref = PagePreference.fromMap(
@@ -143,7 +143,7 @@ class AppPreference {
     );
   }
 
-  void _applyChromePrefs(Map prefMap) {
+  void _applyChromePrefs(Map<String, dynamic> prefMap) {
     startPage = _normalizedBoundedInt(
       prefMap['startPage'],
       defaultValue: 0,
@@ -172,7 +172,7 @@ class AppPreference {
     );
   }
 
-  void _applyNowPlayingPrefs(Map prefMap) {
+  void _applyNowPlayingPrefs(Map<String, dynamic> prefMap) {
     playbackPref = PlaybackPreference.fromMap(prefMap['playbackPref']);
     nowPlayingPagePref = NowPlayingPagePreference.fromMap(
       prefMap['nowPlayingPagePref'],
@@ -185,7 +185,7 @@ class AppPreference {
         nowPlayingPagePref.audioReactiveFlow;
   }
 
-  void _applyUpdatePrefs(Map prefMap) {
+  void _applyUpdatePrefs(Map<String, dynamic> prefMap) {
     customCpFeedbackKey = _normalizedString(prefMap['customCpFeedbackKey']);
     updateRepoSlug = _normalizedNonEmptyString(
       prefMap['updateRepoSlug'],
@@ -208,7 +208,7 @@ class AppPreference {
         : storedUpdateUrls;
   }
 
-  void _applyFolderPrefs(Map prefMap) {
+  void _applyFolderPrefs(Map<String, dynamic> prefMap) {
     userFolders = _normalizedFolderPathList(prefMap['userFolders']);
     excludedFolderPaths = _normalizedFolderPathList(
       prefMap['excludedFolderPaths'],
@@ -311,7 +311,7 @@ class AppPreference {
       );
 
       final prefJson = await File(appPreferencePath).readAsString();
-      final Map prefMap = json.decode(prefJson);
+      final Map<String, dynamic> prefMap = json.decode(prefJson);
       instance.applyStoredMap(prefMap);
       // 用独立保存的 playback_pref.json 覆盖最新播放状态
       // （_persistLastSession 写入的是 playback_pref.json 而非 app_preference.json）

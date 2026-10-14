@@ -30,7 +30,7 @@ void main() {
         'lastPlaylistPaths': [r'C:\Music\old.mp3'],
         'lastPlaylistIndex': 0,
         'lastShuffleActive': false,
-        'lastOriginalPlaylistPaths': [],
+        'lastOriginalPlaylistPaths': <String>[],
         'lastPositionSeconds': 12.5,
       });
       var saves = 0;

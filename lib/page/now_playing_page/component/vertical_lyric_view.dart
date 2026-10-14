@@ -621,7 +621,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
   Ticker? _sharedLyricPositionTicker;
   Duration _sharedLyricLastTick = Duration.zero;
   bool _resumeSharedLyricFromFrozen = false;
-  late StreamSubscription lyricLineStreamSubscription;
+  late StreamSubscription<LyricLineUpdate> lyricLineStreamSubscription;
   Timer? _positionResyncTimer;
   Timer? _positionResyncStopTimer;
   Timer? _playbackResyncTimer;

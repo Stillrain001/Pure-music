@@ -78,7 +78,9 @@ class PlaybackPreference {
   };
 
   factory PlaybackPreference.fromMap(Object? value) {
-    final map = value is Map ? value : const <String, dynamic>{};
+    final map = value is Map<String, dynamic>
+        ? value
+        : const <String, dynamic>{};
     final session = _sessionFromMap(map);
     final eq = _eqFromMap(map);
     final transition = _transitionFromMap(map);
@@ -121,7 +123,7 @@ class PlaybackPreference {
     ReplayGainMode replayGainMode,
     bool skipLeadingSilence,
   })
-  _sessionFromMap(Map map) {
+  _sessionFromMap(Map<String, dynamic> map) {
     final lastPlaylistPaths = _normalizedPathStringList(
       map['lastPlaylistPaths'],
     );
@@ -172,7 +174,7 @@ class PlaybackPreference {
     bool autoGainEnabled,
     double autoHeadroomDb,
   })
-  _eqFromMap(Map map) {
+  _eqFromMap(Map<String, dynamic> map) {
     return (
       gains: migrateEqGains(
         map['eqGains'],
@@ -196,7 +198,7 @@ class PlaybackPreference {
   }
 
   static ({TransitionMode mode, int fadeOutMs, int fadeInMs})
-  _transitionFromMap(Map map) {
+  _transitionFromMap(Map<String, dynamic> map) {
     return (
       mode: _transitionModeFromStored(map),
       fadeOutMs: _normalizedBoundedInt(
@@ -214,7 +216,7 @@ class PlaybackPreference {
     );
   }
 
-  static int _storedEqBandVersion(Map map) {
+  static int _storedEqBandVersion(Map<String, dynamic> map) {
     return _normalizedBoundedInt(
       map['eqBandModelVersion'],
       defaultValue: legacyEqBandModelVersion,

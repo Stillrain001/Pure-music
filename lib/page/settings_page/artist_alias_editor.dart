@@ -21,7 +21,7 @@ class ArtistAliasEditor extends StatelessWidget {
         icon: const Icon(Symbols.edit),
         label: const Text('编辑别名'),
         onPressed: () {
-          showDialog(
+          showDialog<void>(
             context: context,
             builder: (context) => const _ArtistAliasEditDialog(),
           );

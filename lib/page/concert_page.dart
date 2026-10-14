@@ -556,7 +556,7 @@ class _ConcertPageState extends State<ConcertPage> {
     );
     final act = ConcertSession.instance.actAt(0) ?? '演出';
     showTextOnSnackBar('$act开始 · 今晚 ${result.audios.length} 首');
-    context.push(app_paths.NOW_PLAYING_PAGE);
+    unawaited(context.push<void>(app_paths.NOW_PLAYING_PAGE));
   }
 
   Future<void> _saveResultAsPlaylist() async {

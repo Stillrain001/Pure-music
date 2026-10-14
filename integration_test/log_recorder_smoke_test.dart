@@ -34,7 +34,7 @@ void main() {
       'legacy',
       r'[bass] Plugin load failed: C:\Users\Example\bassflac.dll (error 14)',
     );
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
 
     expect(path, isNotNull);
     final liveContent = await File(path!).readAsString();

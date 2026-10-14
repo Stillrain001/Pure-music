@@ -1049,7 +1049,8 @@ class LyricService extends ChangeNotifier {
       _activeLocalIsExternal = true;
       if (!await File(selectedPath).exists()) {
         _lyricCache.remove(cacheKey);
-        _lyricPrefetches.remove(cacheKey);
+        final removedPrefetch = _lyricPrefetches.remove(cacheKey);
+        if (removedPrefetch != null) unawaited(removedPrefetch);
         if (notifyFailure) {
           showTextOnSnackBar('指定的歌词文件不存在', variant: ToastVariant.error);
         }
@@ -1137,8 +1138,8 @@ class LyricService extends ChangeNotifier {
       if (!persistFallbackSource) return;
       if (hitResult == null || result.source == preferredSource) return;
       persistLyricSource(audioPath, hitResult.toLyricSource()).catchError((
-        error,
-        trace,
+        Object error,
+        StackTrace trace,
       ) {
         log.lyric.warn(
           'legacy',
@@ -1383,7 +1384,7 @@ class LyricService extends ChangeNotifier {
             showTextOnSnackBar('歌词已写入标签', variant: ToastVariant.success);
           }
         })
-        .catchError((e, trace) {
+        .catchError((Object e, StackTrace trace) {
           _lyricWritePromptHistory.markWriteFailed(audioPath);
           if (notifyUser) {
             log.lyric.error('legacy', '写入歌词标签失败', error: e, stackTrace: trace);
@@ -1444,7 +1445,8 @@ class LyricService extends ChangeNotifier {
         return value;
       } finally {
         if (identical(_lyricPrefetches[cacheKey], future)) {
-          _lyricPrefetches.remove(cacheKey);
+          final removed = _lyricPrefetches.remove(cacheKey);
+          if (removed != null) unawaited(removed);
         }
       }
     })();

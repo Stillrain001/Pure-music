@@ -246,7 +246,7 @@ class _NowPlayingSmallControlZoneState
     return IconButton(
       tooltip: '均衡器',
       onPressed: () {
-        showDialog(
+        showDialog<void>(
           context: context,
           builder: (context) => const EqualizerDialog(),
         );

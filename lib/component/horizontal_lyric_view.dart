@@ -120,7 +120,7 @@ class _LyricHorizontalScrollAreaState extends State<_LyricHorizontalScrollArea>
   final scrollController = ScrollController();
   final playbackService = PlayService.instance.playbackService;
   final lyricService = PlayService.instance.lyricService;
-  late StreamSubscription lyricLineStreamSubscription;
+  late StreamSubscription<LyricLineUpdate> lyricLineStreamSubscription;
   late final VoidCallback _playbackResyncListener;
   Timer? _positionResyncTimer;
   Timer? _positionResyncStopTimer;

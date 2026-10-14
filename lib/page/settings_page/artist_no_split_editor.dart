@@ -20,7 +20,7 @@ class ArtistNoSplitEditor extends StatelessWidget {
         icon: const Icon(Symbols.edit),
         label: const Text('编辑名单'),
         onPressed: () {
-          showDialog(
+          showDialog<void>(
             context: context,
             builder: (context) => const _ArtistNoSplitEditDialog(),
           );

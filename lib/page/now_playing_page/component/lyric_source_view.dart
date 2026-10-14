@@ -1125,7 +1125,7 @@ class _SetLyricSourceDialogState extends State<SetLyricSourceDialog> {
                     icon: const Icon(Icons.search),
                     tooltip: '手动搜索',
                     onPressed: () {
-                      showDialog(
+                      showDialog<void>(
                         context: context,
                         builder: (context) =>
                             ManualLyricSearchDialog(audio: widget.audio),

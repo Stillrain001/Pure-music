@@ -76,7 +76,9 @@ class NowPlayingPagePreference {
   };
 
   factory NowPlayingPagePreference.fromMap(Object? value) {
-    final map = value is Map ? value : const <String, dynamic>{};
+    final map = value is Map<String, dynamic>
+        ? value
+        : const <String, dynamic>{};
     final look = _lyricLookFromMap(map);
     final backgroundMode =
         _nowPlayingBackgroundModeFromStoredValue(map['backgroundMode']) ??
@@ -120,7 +122,7 @@ class NowPlayingPagePreference {
     double liftPeak,
     LyricStaggerStyle staggerStyle,
   })
-  _lyricLookFromMap(Map map) {
+  _lyricLookFromMap(Map<String, dynamic> map) {
     final type = _lyricTypeFromMap(map);
     final lift = _lyricLiftFromMap(map);
     return (
@@ -150,7 +152,7 @@ class NowPlayingPagePreference {
     bool enableBlur,
     bool showRoman,
   })
-  _lyricTypeFromMap(Map map) {
+  _lyricTypeFromMap(Map<String, dynamic> map) {
     return (
       viewMode:
           _nowPlayingViewModeFromStoredValue(map['nowPlayingViewMode']) ??
@@ -192,7 +194,7 @@ class NowPlayingPagePreference {
     double liftPeak,
     LyricStaggerStyle staggerStyle,
   })
-  _lyricLiftFromMap(Map map) {
+  _lyricLiftFromMap(Map<String, dynamic> map) {
     return (
       rubyPosition:
           RubyPosition.fromString((map['rubyPosition'] as String?) ?? '') ??

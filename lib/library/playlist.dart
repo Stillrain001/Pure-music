@@ -182,7 +182,7 @@ List<Playlist> _readPlaylistsFromJson(File jsonFile) {
   final decoded = json.decode(playlistsStr);
   if (decoded is! List) return playlists;
   for (final item in decoded) {
-    if (item is Map) {
+    if (item is Map<String, dynamic>) {
       playlists.add(Playlist.fromMap(item));
     }
   }
@@ -502,9 +502,9 @@ class Playlist {
     _invalidateAudioCache();
   }
 
-  Map toMap() => {'name': name, 'audios': paths};
+  Map<String, dynamic> toMap() => {'name': name, 'audios': paths};
 
-  factory Playlist.fromMap(Map map) {
+  factory Playlist.fromMap(Map<String, dynamic> map) {
     final paths = <String>[];
     final rawAudios = map['audios'];
     if (rawAudios is! List) {
