@@ -43,6 +43,8 @@ import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/theme.dart';
 import 'package:pure_music/core/update_checker.dart';
+import 'package:pure_music/core/update_download_monitor.dart';
+import 'package:pure_music/core/update_installer.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/core/window_render_gate.dart';
 import 'package:flutter/material.dart';
@@ -306,6 +308,7 @@ class _EntryState extends State<Entry>
       // 预编译播放页背景 shader，避免首次进入时卡顿。
       NowPlayingPage.precacheBackgrounds();
       // 启动后延迟检查更新
+      unawaited(_settleCachedUpdateDownload());
       _autoCheckUpdate();
     });
   }
@@ -433,10 +436,24 @@ class _EntryState extends State<Entry>
     }
   }
 
+  Future<void> _settleCachedUpdateDownload() async {
+    try {
+      await cleanupCachedUpdateDownload();
+      await UpdateDownloadMonitor.instance.restoreReadyNotice();
+    } catch (error, trace) {
+      log.app.warn(
+        'legacy',
+        '[UpdateInstaller] cleanup failed',
+        error: error,
+        stackTrace: trace,
+      );
+    }
+  }
+
   /// 启动后延迟检查更新（1 小时节流）
   Future<void> _autoCheckUpdate() async {
     if (!AppPreference.instance.autoCheckUpdate) return;
-    await Future.delayed(const Duration(seconds: 5));
+    await Future<void>.delayed(const Duration(seconds: 5));
     if (!mounted) return;
     final hadSavedChannel =
         UpdateChannel.parse(AppPreference.instance.updateChannel) != null;
@@ -488,9 +505,11 @@ class _EntryState extends State<Entry>
     AppPreference.instance.lastSeenUpdateTag = update.tagName;
     await AppPreference.instance.save();
     if (!mounted || !overlayContext.mounted) return;
-    showDialog(
-      context: overlayContext,
-      builder: (context) => NewestUpdateView(info: update, channel: channel),
+    unawaited(
+      showDialog<void>(
+        context: overlayContext,
+        builder: (context) => NewestUpdateView(info: update, channel: channel),
+      ),
     );
   }
 

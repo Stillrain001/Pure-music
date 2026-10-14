@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -6,6 +5,7 @@ import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/preference.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/update_checker.dart';
+import 'package:pure_music/core/update_download_monitor.dart';
 import 'package:pure_music/core/update_installer.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/native/rust/api/utils.dart' as rust_utils;
@@ -96,8 +96,22 @@ enum _UpdatePhase {
   preparing,
   verifying,
   installing,
+  ready,
   switchingChannel,
   error,
+}
+
+Future<void> showTrackedUpdateDialog(BuildContext context) {
+  final monitor = UpdateDownloadMonitor.instance;
+  final info = monitor.info;
+  final channel = monitor.channel;
+  if (info == null || channel == null || monitor.dialogOpen) {
+    return Future<void>.value();
+  }
+  return showDialog<void>(
+    context: context,
+    builder: (context) => NewestUpdateView(info: info, channel: channel),
+  );
 }
 
 class NewestUpdateView extends StatefulWidget {
@@ -118,16 +132,87 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
   _UpdatePhase _phase = _UpdatePhase.idle;
   int _received = 0;
   int _total = 0;
-  CancelToken? _cancelToken;
   late UpdateInfo _info;
   late UpdateChannel _channel;
   String? _errorMessage;
+  var _mirroring = false;
+  UpdateMonitorPhase _seenMonitorPhase = UpdateMonitorPhase.idle;
+
+  UpdateDownloadMonitor get _monitor => UpdateDownloadMonitor.instance;
 
   @override
   void initState() {
     super.initState();
     _info = widget.info;
     _channel = widget.channel;
+    _monitor.noteDialogOpened();
+    _monitor.addListener(_onMonitor);
+    _seenMonitorPhase = _monitor.phase;
+    _applyMonitor();
+  }
+
+  @override
+  void dispose() {
+    _monitor.removeListener(_onMonitor);
+    _monitor.noteDialogClosed();
+    super.dispose();
+  }
+
+  void _onMonitor() {
+    final previous = _seenMonitorPhase;
+    _seenMonitorPhase = _monitor.phase;
+    _applyMonitor();
+    if (!mounted) return;
+    if (previous != UpdateMonitorPhase.failed &&
+        _monitor.phase == UpdateMonitorPhase.failed &&
+        _errorMessage != null) {
+      showTextOnSnackBar(_errorMessage!, variant: ToastVariant.error);
+    }
+    setState(() {});
+  }
+
+  void _applyMonitor() {
+    if (_monitor.phase == UpdateMonitorPhase.idle) {
+      if (!_mirroring) return;
+      _mirroring = false;
+      _phase = _UpdatePhase.idle;
+      _errorMessage = null;
+      _received = 0;
+      return;
+    }
+    if (_monitor.info?.tagName != widget.info.tagName &&
+        _monitor.info?.tagName != _info.tagName) {
+      return;
+    }
+    _mirroring = true;
+    final info = _monitor.info;
+    final channel = _monitor.channel;
+    if (info != null) _info = info;
+    if (channel != null) _channel = channel;
+    _received = _monitor.received;
+    _total = _monitor.total;
+    switch (_monitor.phase) {
+      case UpdateMonitorPhase.idle:
+        break;
+      case UpdateMonitorPhase.downloading:
+        _phase = _UpdatePhase.downloading;
+        _errorMessage = null;
+      case UpdateMonitorPhase.verifying:
+        _phase = _UpdatePhase.verifying;
+        _errorMessage = null;
+      case UpdateMonitorPhase.preparing:
+        _phase = _UpdatePhase.preparing;
+        _errorMessage = null;
+      case UpdateMonitorPhase.installing:
+        _phase = _UpdatePhase.installing;
+        _errorMessage = null;
+      case UpdateMonitorPhase.ready:
+        _phase = _UpdatePhase.ready;
+        _errorMessage = null;
+      case UpdateMonitorPhase.failed:
+        _phase = _UpdatePhase.error;
+        _errorMessage = _monitor.errorMessage ?? '更新失败';
+    }
   }
 
   String? get _updateUrl {
@@ -137,7 +222,7 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
   }
 
   Future<void> _startUpdate() async {
-    if (_phase != _UpdatePhase.idle && _phase != _UpdatePhase.error) return;
+    if (_busy || _phase == _UpdatePhase.ready) return;
     final downloadUrl = _info.downloadUrl(
       channel: _channel,
       portableBuild: portableBuild,
@@ -146,15 +231,7 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
       await _missingDownloadUrl();
       return;
     }
-    final cancelToken = CancelToken();
-    _cancelToken = cancelToken;
-    setState(() {
-      _phase = _UpdatePhase.downloading;
-      _errorMessage = null;
-      _received = 0;
-      _total = _info.downloadSize(portableBuild: portableBuild) ?? 0;
-    });
-    await _runInstaller(cancelToken);
+    await _monitor.startDownload(_info, _channel);
   }
 
   Future<void> _missingDownloadUrl() async {
@@ -169,65 +246,10 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
     }
   }
 
-  Future<void> _runInstaller(CancelToken cancelToken) async {
-    try {
-      final outcome = await UpdateInstaller.run(
-        info: _info,
-        channel: _channel,
-        cancelToken: cancelToken,
-        onProgress: (received, total) {
-          if (!mounted) return;
-          setState(() {
-            _received = received;
-            if (total > 0) _total = total;
-          });
-        },
-        onPhase: _applyInstallerPhase,
-      );
-      if (outcome == UpdateInstallOutcome.portableStarted && mounted) {
-        Navigator.pop(context);
-      }
-    } on DioException catch (e) {
-      if (e.type == DioExceptionType.cancel) {
-        if (mounted) setState(() => _phase = _UpdatePhase.idle);
-        return;
-      }
-      await _fail(e.message ?? '更新失败');
-    } on UpdateInstallException catch (e) {
-      await _fail(e.message);
-    } catch (_) {
-      await _fail('更新失败');
-    }
-  }
-
-  void _applyInstallerPhase(String phase) {
-    if (!mounted) return;
-    setState(() {
-      if (phase == '正在解压更新') {
-        _phase = _UpdatePhase.preparing;
-      } else if (phase == '正在校验') {
-        _phase = _UpdatePhase.verifying;
-      } else if (phase == '正在启动安装程序' || phase == '正在切换版本') {
-        _phase = _UpdatePhase.installing;
-      } else {
-        _phase = _UpdatePhase.downloading;
-      }
-    });
-  }
-
   Future<void> _openReleasePage() async {
     final updateUrl = _updateUrl;
     if (updateUrl == null) return;
     await _launchBrowserUrl(updateUrl);
-  }
-
-  Future<void> _fail(String message) async {
-    if (!mounted) return;
-    setState(() {
-      _phase = _UpdatePhase.error;
-      _errorMessage = message;
-    });
-    showTextOnSnackBar(message, variant: ToastVariant.error);
   }
 
   Future<void> _switchChannelAndRetry() async {
@@ -290,7 +312,7 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
   }
 
   void _cancel() {
-    _cancelToken?.cancel();
+    _monitor.cancel();
   }
 
   String get _progressLabel {
@@ -315,6 +337,8 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
         return '正在校验完整性';
       case _UpdatePhase.installing:
         return portableBuild ? '正在切换到新版本' : '正在启动安装程序';
+      case _UpdatePhase.ready:
+        return '更新已下载，可以安装';
       case _UpdatePhase.switchingChannel:
         return '正在切换到${_channel.alternate.label}';
       case _UpdatePhase.error:
@@ -342,11 +366,10 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
 
   bool get _canInstall => _hasDownload && _hasChecksum;
 
-  @override
-  void dispose() {
-    _cancelToken?.cancel();
-    super.dispose();
-  }
+  bool get _holdDialog =>
+      _phase == _UpdatePhase.preparing ||
+      _phase == _UpdatePhase.installing ||
+      _phase == _UpdatePhase.switchingChannel;
 
   @override
   Widget build(BuildContext context) {
@@ -354,34 +377,37 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
     final size = MediaQuery.sizeOf(context);
     final width = (size.width - 48.0).clamp(320.0, 720.0).toDouble();
     final height = (size.height - 96.0).clamp(360.0, 640.0).toDouble();
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(
-        horizontal: 24.0,
-        vertical: 24.0,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.mdCircular),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(scheme),
-              const SizedBox(height: Spacing.md),
-              Expanded(child: _changelog(context, scheme)),
-              if (_busy) ..._progress(scheme),
-              if (_phase == _UpdatePhase.error && _errorMessage != null)
-                ..._error(scheme),
-              if (!_busy &&
-                  _hasDownload &&
-                  !_hasChecksum &&
-                  _phase != _UpdatePhase.error)
-                ..._missingChecksumHint(scheme),
-              const SizedBox(height: Spacing.lg),
-              _actions(context),
-            ],
+    return PopScope(
+      canPop: !_holdDialog,
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: 24.0,
+          vertical: 24.0,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.mdCircular),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Padding(
+            padding: const EdgeInsets.all(Spacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _header(scheme),
+                const SizedBox(height: Spacing.md),
+                Expanded(child: _changelog(context, scheme)),
+                if (_busy) ..._progress(scheme),
+                if (_phase == _UpdatePhase.error && _errorMessage != null)
+                  ..._error(scheme),
+                if (!_busy &&
+                    _hasDownload &&
+                    !_hasChecksum &&
+                    _phase != _UpdatePhase.error)
+                  ..._missingChecksumHint(scheme),
+                const SizedBox(height: Spacing.lg),
+                _actions(context),
+              ],
+            ),
           ),
         ),
       ),
@@ -538,6 +564,13 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
         label: const Text('处理中'),
       );
     }
+    if (_phase == _UpdatePhase.ready) {
+      return FilledButton.icon(
+        onPressed: _monitor.install,
+        icon: const Icon(Symbols.download),
+        label: const Text('安装更新'),
+      );
+    }
     if (_canInstall) {
       final bytes = _info.downloadSize(portableBuild: portableBuild);
       const action = portableBuild ? '下载更新' : '下载并安装';
@@ -559,6 +592,68 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
           : null,
       icon: const Icon(Symbols.arrow_outward),
       label: const Text('打开网页'),
+    );
+  }
+}
+
+class UpdateTitleStatus extends StatelessWidget {
+  const UpdateTitleStatus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: UpdateDownloadMonitor.instance,
+      builder: (context, _) {
+        final monitor = UpdateDownloadMonitor.instance;
+        if (!monitor.visible) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        return Material(
+          color: scheme.secondaryContainer,
+          borderRadius: AppRadius.smCircular,
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: InkWell(
+                  onTap: () => showTrackedUpdateDialog(context),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+                    child: Text(
+                      monitor.titleLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSecondaryContainer,
+                        fontSize: AppType.caption,
+                        fontWeight: AppType.weightMedium,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (monitor.canCancel)
+                IconButton(
+                  tooltip: '取消',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
+                  onPressed: monitor.cancel,
+                  icon: Icon(
+                    Symbols.close,
+                    size: 16,
+                    color: scheme.onSecondaryContainer,
+                  ),
+                )
+              else
+                const SizedBox(width: 6),
+            ],
+          ),
+        );
+      },
     );
   }
 }

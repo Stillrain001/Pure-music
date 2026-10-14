@@ -1,12 +1,14 @@
 // ignore_for_file: camel_case_types
 
 import 'package:pure_music/core/design_tokens.dart';
+import 'package:pure_music/core/update_download_monitor.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/window_lifecycle.dart';
 import 'package:pure_music/component/frosted_chrome.dart';
 import 'package:pure_music/component/horizontal_lyric_view.dart';
 import 'package:pure_music/component/responsive_builder.dart';
 import 'package:pure_music/component/search_dialog.dart';
+import 'package:pure_music/page/settings_page/check_update.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -57,7 +59,7 @@ class _TitleBar_Small extends StatelessWidget {
             const _OpenDrawerBtn(),
             const SizedBox(width: 8.0),
             const NavBackBtn(),
-            Expanded(child: _smallTitle(scheme)),
+            Expanded(child: _UpdateAwareSlot(child: _smallTitle(scheme))),
             IconButton(
               tooltip: '搜索',
               onPressed: () => SearchDialog.show(context),
@@ -229,8 +231,30 @@ class _TitleLyricSlot extends StatelessWidget {
     return Expanded(
       child: Padding(
         padding: padding,
-        child: HorizontalLyricView(compact: compact),
+        child: _UpdateAwareSlot(
+          child: HorizontalLyricView(compact: compact),
+        ),
       ),
+    );
+  }
+}
+
+class _UpdateAwareSlot extends StatelessWidget {
+  const _UpdateAwareSlot({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: UpdateDownloadMonitor.instance,
+      builder: (context, _) {
+        if (!UpdateDownloadMonitor.instance.visible) return child;
+        return const Align(
+          alignment: Alignment.centerLeft,
+          child: UpdateTitleStatus(),
+        );
+      },
     );
   }
 }

@@ -89,12 +89,363 @@ Future<void> verifyExtractedPortablePackage(String appDir) async {
   }
 }
 
+const updateDownloadDirectoryName = 'updates';
+const updateDownloadStateFileName = 'download.json';
+
+enum UpdateResumeAction { append, overwrite, alreadyComplete, restart }
+
+class ContentRange {
+  const ContentRange(this.start, this.total);
+
+  final int start;
+  final int? total;
+}
+
+ContentRange? parseContentRange(String? header) {
+  if (header == null || header.isEmpty) return null;
+  final match = RegExp(
+    r'bytes\s+(\d+)-\d+/(\d+|\*)',
+  ).firstMatch(header.trim());
+  if (match == null) return null;
+  final start = int.tryParse(match.group(1)!);
+  if (start == null) return null;
+  final totalRaw = match.group(2)!;
+  if (totalRaw == '*') return ContentRange(start, null);
+  final total = int.tryParse(totalRaw);
+  if (total == null) return null;
+  return ContentRange(start, total);
+}
+
+/// 200 表示服务器给了整包，必须覆盖。只有明确的 206 才能接到已有字节后面。
+UpdateResumeAction decideUpdateResumeAction({
+  required int statusCode,
+  required int existingBytes,
+  required int? contentRangeStart,
+  required int? expectedSize,
+}) {
+  if (statusCode == HttpStatus.requestedRangeNotSatisfiable) {
+    if (expectedSize != null &&
+        existingBytes == expectedSize &&
+        existingBytes > 0) {
+      return UpdateResumeAction.alreadyComplete;
+    }
+    return UpdateResumeAction.restart;
+  }
+  if (statusCode == HttpStatus.partialContent) {
+    if (contentRangeStart == null || contentRangeStart != existingBytes) {
+      return UpdateResumeAction.restart;
+    }
+    return existingBytes > 0
+        ? UpdateResumeAction.append
+        : UpdateResumeAction.overwrite;
+  }
+  if (statusCode == HttpStatus.ok) return UpdateResumeAction.overwrite;
+  return UpdateResumeAction.restart;
+}
+
+int updateDownloadTotal({
+  required UpdateResumeAction action,
+  required int existingBytes,
+  required int? contentRangeTotal,
+  required int? contentLength,
+  required int? expectedSize,
+}) {
+  if (expectedSize != null && expectedSize > 0) return expectedSize;
+  if (contentRangeTotal != null && contentRangeTotal > 0) {
+    return contentRangeTotal;
+  }
+  if (contentLength != null && contentLength > 0) {
+    if (action == UpdateResumeAction.append) {
+      return existingBytes + contentLength;
+    }
+    return contentLength;
+  }
+  return existingBytes > 0 ? existingBytes : 0;
+}
+
+class UpdateDownloadRecord {
+  const UpdateDownloadRecord({
+    required this.tagName,
+    required this.portable,
+    required this.url,
+    required this.fileName,
+    this.sha256,
+    this.expectedSize,
+    this.verified = false,
+    this.channelName,
+    this.updateInfo,
+  });
+
+  final String tagName;
+  final bool portable;
+  final String url;
+  final String fileName;
+  final String? sha256;
+  final int? expectedSize;
+  final bool verified;
+  final String? channelName;
+  final Map<String, dynamic>? updateInfo;
+
+  Map<String, Object?> toJson() => {
+    'tagName': tagName,
+    'portable': portable,
+    'url': url,
+    'fileName': fileName,
+    if (sha256 != null) 'sha256': sha256,
+    if (expectedSize != null) 'expectedSize': expectedSize,
+    if (verified) 'verified': true,
+    if (channelName != null) 'channel': channelName,
+    if (updateInfo != null) 'updateInfo': updateInfo,
+  };
+
+  UpdateDownloadRecord withNotice({
+    required bool verified,
+    required String channelName,
+    required Map<String, dynamic> updateInfo,
+  }) {
+    return UpdateDownloadRecord(
+      tagName: tagName,
+      portable: portable,
+      url: url,
+      fileName: fileName,
+      sha256: sha256,
+      expectedSize: expectedSize,
+      verified: verified,
+      channelName: channelName,
+      updateInfo: updateInfo,
+    );
+  }
+
+  static UpdateDownloadRecord? tryParse(Object? value) {
+    if (value is! Map) return null;
+    final tagName = _recordString(value['tagName']);
+    final url = _recordString(value['url']);
+    final fileName = _recordString(value['fileName']);
+    final portable = value['portable'];
+    if (tagName == null ||
+        url == null ||
+        fileName == null ||
+        portable is! bool ||
+        !_isUpdatePayloadName(fileName)) {
+      return null;
+    }
+    final sha256 = _recordString(value['sha256'])?.toLowerCase();
+    if (sha256 != null && !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256)) {
+      return null;
+    }
+    final expectedSize = value['expectedSize'];
+    if (expectedSize != null && expectedSize is! int) return null;
+    final updateInfoRaw = value['updateInfo'];
+    Map<String, dynamic>? updateInfo;
+    if (updateInfoRaw is Map) {
+      updateInfo = Map<String, dynamic>.from(updateInfoRaw);
+    }
+    return UpdateDownloadRecord(
+      tagName: tagName,
+      portable: portable,
+      url: url,
+      fileName: fileName,
+      sha256: sha256,
+      expectedSize: expectedSize,
+      verified: value['verified'] == true,
+      channelName: _recordString(value['channel']),
+      updateInfo: updateInfo,
+    );
+  }
+
+  bool matches({
+    required String tagName,
+    required bool portable,
+    required String url,
+    required String fileName,
+    required String? sha256,
+    required int? expectedSize,
+  }) {
+    if (this.tagName != tagName ||
+        this.portable != portable ||
+        this.fileName != fileName) {
+      return false;
+    }
+    if (expectedSize != null &&
+        this.expectedSize != null &&
+        this.expectedSize != expectedSize) {
+      return false;
+    }
+    final nextSha = sha256?.trim().toLowerCase();
+    final savedSha = this.sha256?.trim().toLowerCase();
+    if (nextSha != null &&
+        savedSha != null &&
+        nextSha.isNotEmpty &&
+        savedSha.isNotEmpty) {
+      return nextSha == savedSha;
+    }
+    return this.url == url;
+  }
+}
+
+bool shouldRemoveCachedUpdate(String cachedTag, String currentVersion) {
+  return UpdateChecker.compareSemVer(cachedTag, currentVersion) <= 0;
+}
+
+bool _isUpdatePayloadName(String fileName) {
+  if (fileName.isEmpty ||
+      fileName == '.' ||
+      fileName == '..' ||
+      fileName == updateDownloadStateFileName) {
+    return false;
+  }
+  return fileName == p.basename(fileName) &&
+      !fileName.contains('/') &&
+      !fileName.contains('\\');
+}
+
+String? _recordString(Object? value) {
+  if (value is! String) return null;
+  final normalized = value.trim();
+  return normalized.isEmpty ? null : normalized;
+}
+
+String? updatePayloadPath(Directory directory, String fileName) {
+  if (!_isUpdatePayloadName(fileName)) return null;
+  final path = p.normalize(p.join(directory.path, fileName));
+  if (!p.isWithin(p.normalize(directory.path), path)) return null;
+  return path;
+}
+
+Future<void> cleanupCachedUpdateDownload({
+  Directory? directory,
+  String? currentVersion,
+}) async {
+  final dir =
+      directory ??
+      Directory(
+        p.join((await getAppDataDir()).path, updateDownloadDirectoryName),
+      );
+  if (!await dir.exists()) return;
+  final stateFile = File(p.join(dir.path, updateDownloadStateFileName));
+  final record = await _readUpdateDownloadRecord(stateFile);
+  if (record == null) {
+    if (await stateFile.exists()) await _deleteUpdateFile(stateFile.path);
+    return;
+  }
+  final version = currentVersion ?? AppSettings.version;
+  if (!shouldRemoveCachedUpdate(record.tagName, version)) return;
+
+  final again = await _readUpdateDownloadRecord(stateFile);
+  if (again == null ||
+      again.tagName != record.tagName ||
+      again.fileName != record.fileName) {
+    return;
+  }
+  final payload = updatePayloadPath(dir, again.fileName);
+  if (payload != null) await _deleteUpdateFile(payload);
+  if (payload != null && await File(payload).exists()) return;
+  await _deleteUpdateFile(stateFile.path);
+}
+
+class VerifiedUpdateNotice {
+  const VerifiedUpdateNotice({
+    required this.info,
+    required this.channel,
+    required this.path,
+  });
+
+  final UpdateInfo info;
+  final UpdateChannel channel;
+  final String path;
+}
+
+Future<void> rememberVerifiedUpdatePackage({
+  required String savePath,
+  required UpdateInfo info,
+  required UpdateChannel channel,
+}) async {
+  final stateFile = File(
+    p.join(p.dirname(savePath), updateDownloadStateFileName),
+  );
+  final existing = await _readUpdateDownloadRecord(stateFile);
+  if (existing == null) return;
+  final next = existing.withNotice(
+    verified: true,
+    channelName: channel.name,
+    updateInfo: info.toJson(),
+  );
+  await writeTextFileAtomically(stateFile.path, jsonEncode(next.toJson()));
+}
+
+Future<VerifiedUpdateNotice?> readVerifiedUpdateNotice({
+  Directory? directory,
+  String? currentVersion,
+}) async {
+  final dir =
+      directory ??
+      Directory(
+        p.join((await getAppDataDir()).path, updateDownloadDirectoryName),
+      );
+  if (!await dir.exists()) return null;
+  final record = await _readUpdateDownloadRecord(
+    File(p.join(dir.path, updateDownloadStateFileName)),
+  );
+  final saved = record?.updateInfo;
+  if (record == null || !record.verified || saved == null) return null;
+  final version = currentVersion ?? AppSettings.version;
+  if (shouldRemoveCachedUpdate(record.tagName, version)) return null;
+  final payload = updatePayloadPath(dir, record.fileName);
+  if (payload == null) return null;
+  final file = File(payload);
+  if (!await file.exists()) return null;
+  if (record.expectedSize != null &&
+      await file.length() != record.expectedSize) {
+    return null;
+  }
+  final info = UpdateInfo.fromJson(saved);
+  if (info.tagName.isEmpty) return null;
+  return VerifiedUpdateNotice(
+    info: info,
+    channel: UpdateChannel.parse(record.channelName) ?? UpdateChannel.github,
+    path: payload,
+  );
+}
+
+Future<UpdateDownloadRecord?> _readUpdateDownloadRecord(File file) async {
+  if (!await file.exists()) return null;
+  try {
+    return UpdateDownloadRecord.tryParse(jsonDecode(await file.readAsString()));
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _deleteUpdateFile(String path) async {
+  try {
+    final file = File(path);
+    if (await file.exists()) await file.delete();
+  } catch (_) {}
+}
+
 class UpdateInstaller {
   UpdateInstaller._();
 
   static const _portableSupportDirectory = '.update';
 
   static Future<UpdateInstallOutcome> run({
+    required UpdateInfo info,
+    required UpdateChannel channel,
+    required CancelToken cancelToken,
+    required UpdateProgressCallback onProgress,
+    required UpdatePhaseCallback onPhase,
+  }) async {
+    final savePath = await downloadVerified(
+      info: info,
+      channel: channel,
+      cancelToken: cancelToken,
+      onProgress: onProgress,
+      onPhase: onPhase,
+    );
+    return installDownloaded(savePath: savePath, onPhase: onPhase);
+  }
+
+  static Future<String> downloadVerified({
     required UpdateInfo info,
     required UpdateChannel channel,
     required CancelToken cancelToken,
@@ -117,54 +468,70 @@ class UpdateInstaller {
       portableBuild: portableBuild,
     );
 
-    final fileName = _fileNameFromUrl(url);
-    final savePath = await _prepareSavePath(fileName);
+    final expectedSha = await _resolveExpectedSha256(
+      info: info,
+      channel: channel,
+      portableBuild: portableBuild,
+      cancelToken: cancelToken,
+    );
+    final expectedSize = info.downloadSize(portableBuild: portableBuild);
+    final savePath = await _prepareResumeSave(
+      tagName: info.tagName,
+      url: url,
+      sha256: expectedSha,
+      expectedSize: expectedSize,
+    );
 
     onPhase('正在下载');
     try {
-      await Dio().download(
-        url,
-        savePath,
+      await _downloadResumable(
+        url: url,
+        savePath: savePath,
+        expectedSize: expectedSize,
         cancelToken: cancelToken,
-        onReceiveProgress: onProgress,
-        options: Options(
-          connectTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(minutes: 5),
-          followRedirects: true,
-        ),
+        onProgress: onProgress,
       );
     } on DioException {
-      await _deleteQuietly(savePath);
       rethrow;
-    } catch (error) {
-      await _deleteQuietly(savePath);
-      if (error is UpdateInstallException) rethrow;
+    } on UpdateInstallException {
+      rethrow;
+    } catch (_) {
       throw UpdateInstallException('下载失败');
     }
 
     final downloaded = File(savePath);
-    if (!await downloaded.exists() || await downloaded.length() == 0) {
-      await _deleteQuietly(savePath);
+    final downloadedLength = await downloaded.exists()
+        ? await downloaded.length()
+        : 0;
+    if (downloadedLength == 0) {
+      await _discardDownloadedUpdate(savePath);
       throw UpdateInstallException('下载文件为空');
+    }
+    if (expectedSize != null && downloadedLength > expectedSize) {
+      await _discardDownloadedUpdate(savePath);
+      throw UpdateInstallException('下载失败');
+    }
+    if (expectedSize != null && downloadedLength < expectedSize) {
+      throw UpdateInstallException('下载未完成');
     }
 
     onPhase('正在校验');
     try {
-      final expected = await _resolveExpectedSha256(
-        info: info,
-        channel: channel,
-        portableBuild: portableBuild,
-        cancelToken: cancelToken,
-      );
-      final ok = await _verifySha256(savePath, expected);
+      final ok = await _verifySha256(savePath, expectedSha);
       if (!ok) {
         throw UpdateInstallException('校验失败，文件已删除');
       }
     } catch (_) {
-      await _deleteQuietly(savePath);
+      await _discardDownloadedUpdate(savePath);
       rethrow;
     }
+    return savePath;
+  }
 
+  static Future<UpdateInstallOutcome> installDownloaded({
+    required String savePath,
+    required UpdatePhaseCallback onPhase,
+  }) async {
     if (portableBuild) {
       return _startPortableUpdate(archivePath: savePath, onPhase: onPhase);
     }
@@ -254,7 +621,7 @@ class UpdateInstaller {
         throw UpdateInstallException('启动便携版更新程序失败');
       }
       helperStarted = true;
-      await _deleteQuietly(archivePath);
+      await _discardDownloadedUpdate(archivePath);
       await WindowLifecycleService.instance.exitApp();
       return UpdateInstallOutcome.portableStarted;
     } catch (error) {
@@ -360,17 +727,189 @@ class UpdateInstaller {
     return actual == target;
   }
 
-  static Future<String> _prepareSavePath(String fileName) async {
+  static Future<String> _prepareResumeSave({
+    required String tagName,
+    required String url,
+    required String sha256,
+    required int? expectedSize,
+  }) async {
     final dir = Directory(
-      p.join(Directory.systemTemp.path, 'pure_music_update'),
+      p.join((await getAppDataDir()).path, updateDownloadDirectoryName),
     );
     await dir.create(recursive: true);
-    final path = p.normalize(p.join(dir.path, p.basename(fileName)));
-    if (!p.isWithin(p.normalize(dir.path), path)) {
-      throw UpdateInstallException('下载路径非法');
+    final fileName = _fileNameFromUrl(url);
+    final savePath = updatePayloadPath(dir, fileName);
+    if (savePath == null) throw UpdateInstallException('下载路径非法');
+
+    final stateFile = File(p.join(dir.path, updateDownloadStateFileName));
+    final existing = await _readUpdateDownloadRecord(stateFile);
+    final record = UpdateDownloadRecord(
+      tagName: tagName,
+      portable: portableBuild,
+      url: url,
+      fileName: fileName,
+      sha256: sha256.toLowerCase(),
+      expectedSize: expectedSize,
+    );
+    final file = File(savePath);
+    final reusable =
+        existing != null &&
+        existing.matches(
+          tagName: tagName,
+          portable: portableBuild,
+          url: url,
+          fileName: fileName,
+          sha256: sha256,
+          expectedSize: expectedSize,
+        );
+    if (!reusable) {
+      if (existing != null) {
+        final oldPath = updatePayloadPath(dir, existing.fileName);
+        if (oldPath != null) await _deleteQuietly(oldPath);
+      }
+      if (await file.exists()) await _deleteQuietly(savePath);
+    } else if (await file.exists()) {
+      final length = await file.length();
+      if (expectedSize != null && length > expectedSize) {
+        await _deleteQuietly(savePath);
+      }
     }
-    await _deleteQuietly(path);
-    return path;
+    await writeTextFileAtomically(stateFile.path, jsonEncode(record.toJson()));
+    return savePath;
+  }
+
+  static Future<void> _downloadResumable({
+    required String url,
+    required String savePath,
+    required int? expectedSize,
+    required CancelToken cancelToken,
+    required UpdateProgressCallback onProgress,
+  }) async {
+    final file = File(savePath);
+    var startAt = await file.exists() ? await file.length() : 0;
+    if (expectedSize != null && startAt > expectedSize) {
+      await _deleteQuietly(savePath);
+      startAt = 0;
+    }
+    if (expectedSize != null && startAt == expectedSize && startAt > 0) {
+      onProgress(startAt, expectedSize);
+      return;
+    }
+    if (startAt > 0) {
+      log.update.info('legacy', '[UpdateInstaller] resume bytes=$startAt');
+      onProgress(startAt, expectedSize ?? 0);
+    }
+
+    var useRange = startAt > 0;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final restart = await _transferUpdate(
+        url: url,
+        savePath: savePath,
+        existingBytes: useRange ? startAt : 0,
+        expectedSize: expectedSize,
+        useRange: useRange,
+        cancelToken: cancelToken,
+        onProgress: onProgress,
+      );
+      if (!restart) return;
+      await _deleteQuietly(savePath);
+      startAt = 0;
+      useRange = false;
+    }
+    throw UpdateInstallException('下载失败');
+  }
+
+  static Future<bool> _transferUpdate({
+    required String url,
+    required String savePath,
+    required int existingBytes,
+    required int? expectedSize,
+    required bool useRange,
+    required CancelToken cancelToken,
+    required UpdateProgressCallback onProgress,
+  }) async {
+    final response = await Dio().get<ResponseBody>(
+      url,
+      cancelToken: cancelToken,
+      options: Options(
+        responseType: ResponseType.stream,
+        followRedirects: true,
+        maxRedirects: 5,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(minutes: 5),
+        headers: {
+          'User-Agent': 'Pure-Music-Updater',
+          if (useRange && existingBytes > 0) 'Range': 'bytes=$existingBytes-',
+        },
+        validateStatus: (code) =>
+            code == HttpStatus.ok ||
+            code == HttpStatus.partialContent ||
+            code == HttpStatus.requestedRangeNotSatisfiable,
+      ),
+    );
+    final stream = response.data?.stream;
+    final status = response.statusCode ?? 0;
+    final range = parseContentRange(
+      response.headers.value(HttpHeaders.contentRangeHeader),
+    );
+    final action = decideUpdateResumeAction(
+      statusCode: status,
+      existingBytes: existingBytes,
+      contentRangeStart: range?.start,
+      expectedSize: expectedSize,
+    );
+    if (action == UpdateResumeAction.alreadyComplete) {
+      if (stream != null) await stream.drain<void>();
+      onProgress(existingBytes, expectedSize ?? existingBytes);
+      return false;
+    }
+    if (action == UpdateResumeAction.restart) {
+      if (stream != null) await stream.drain<void>();
+      return true;
+    }
+    final contentType =
+        response.headers.value(Headers.contentTypeHeader)?.toLowerCase() ?? '';
+    if (contentType.startsWith('text/')) {
+      if (stream != null) await stream.drain<void>();
+      throw UpdateInstallException('下载失败');
+    }
+
+    final contentLength = int.tryParse(
+      response.headers.value(Headers.contentLengthHeader) ?? '',
+    );
+    final total = updateDownloadTotal(
+      action: action,
+      existingBytes: action == UpdateResumeAction.append ? existingBytes : 0,
+      contentRangeTotal: range?.total,
+      contentLength: contentLength,
+      expectedSize: expectedSize,
+    );
+    if (stream == null) throw UpdateInstallException('下载失败');
+    final base = action == UpdateResumeAction.append ? existingBytes : 0;
+    var received = base;
+    final handle = await File(savePath).open(
+      mode: action == UpdateResumeAction.append
+          ? FileMode.append
+          : FileMode.write,
+    );
+    try {
+      await for (final chunk in stream) {
+        await handle.writeFrom(chunk);
+        received += chunk.length;
+        onProgress(received, total);
+      }
+    } finally {
+      await handle.close();
+    }
+    return false;
+  }
+
+  static Future<void> _discardDownloadedUpdate(String savePath) async {
+    await _deleteQuietly(savePath);
+    if (await File(savePath).exists()) return;
+    await _deleteQuietly(
+      p.join(p.dirname(savePath), updateDownloadStateFileName),
+    );
   }
 
   static String _fileNameFromUrl(String url) {
