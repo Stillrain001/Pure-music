@@ -492,73 +492,40 @@ class _LyricOffsetPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: _withVerticalSpacing(const [
+        _SaveOffsetToTagButton(),
+        _OffsetNudgeButton(),
+        _OffsetResetButton(),
+      ], 8.0),
+    );
+  }
+}
+
+class _OffsetNudgeButton extends StatelessWidget {
+  const _OffsetNudgeButton();
+
+  @override
+  Widget build(BuildContext context) {
     final color = _lyricControlForeground(Theme.of(context).colorScheme);
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        LyricManualOffset.instance,
-        PlayService.instance.lyricService,
-      ]),
+      listenable: LyricManualOffset.instance,
       builder: (context, _) {
         final ms = LyricManualOffset.instance.manualMs;
         final label = ms == 0 ? '0' : '${ms > 0 ? '+' : ''}$ms';
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: _withVerticalSpacing([
-            const _SaveOffsetToTagButton(),
-            _OffsetValueLabel(label: label, color: color, milliseconds: ms),
-            const _OffsetStepButton('+100', 100, '歌词提前 100 毫秒'),
-            const _OffsetStepButton('+50', 50, '歌词提前 50 毫秒'),
-            const _OffsetResetButton(),
-            const _OffsetStepButton('-50', -50, '歌词延后 50 毫秒'),
-            const _OffsetStepButton('-100', -100, '歌词延后 100 毫秒'),
-          ], 8.0),
+        return GestureDetector(
+          onSecondaryTap: () => LyricManualOffset.instance.add(-100),
+          child: IconButton(
+            onPressed: () => LyricManualOffset.instance.add(100),
+            onLongPress: () => LyricManualOffset.instance.add(50),
+            tooltip: '偏移：左键提前 / 右键延后 / 长按微调 ($label)',
+            color: color,
+            icon: _lyricBarLabel(label, color),
+          ),
         );
       },
-    );
-  }
-}
-
-class _OffsetValueLabel extends StatelessWidget {
-  const _OffsetValueLabel({
-    required this.label,
-    required this.color,
-    required this.milliseconds,
-  });
-
-  final String label;
-  final Color color;
-  final int milliseconds;
-
-  @override
-  Widget build(BuildContext context) {
-    final shown = milliseconds == 0 ? '0 毫秒' : '$label 毫秒';
-    return Tooltip(
-      message: '当前偏移 $shown',
-      child: IconButton(
-        onPressed: () {},
-        color: color,
-        icon: _lyricBarLabel(label, color),
-      ),
-    );
-  }
-}
-
-class _OffsetStepButton extends StatelessWidget {
-  const _OffsetStepButton(this.label, this.deltaMs, this.tooltip);
-
-  final String label;
-  final int deltaMs;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _lyricControlForeground(Theme.of(context).colorScheme);
-    return IconButton(
-      onPressed: () => LyricManualOffset.instance.add(deltaMs),
-      tooltip: tooltip,
-      color: color,
-      icon: _lyricBarLabel(label, color),
     );
   }
 }
