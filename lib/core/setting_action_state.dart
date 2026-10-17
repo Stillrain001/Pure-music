@@ -207,6 +207,34 @@ double? _normalizedWindowSizeNumber(Object? value) {
   return (x: x, y: y);
 }
 
+// 窗口物理像素矩形的持久化格式："x,y,width,height"（整数，允许负坐标）
+String encodedWindowPlacementPxSetting(int x, int y, int width, int height) =>
+    '$x,$y,$width,$height';
+
+({int x, int y, int width, int height})? normalizedWindowPlacementPxSetting(
+  Object? value,
+) {
+  final parts = switch (value) {
+    String() => value.trim().split(','),
+    Iterable() => value.toList(growable: false),
+    Map()
+        when value.containsKey('x') &&
+            value.containsKey('y') &&
+            value.containsKey('width') &&
+            value.containsKey('height') =>
+      [value['x'], value['y'], value['width'], value['height']],
+    _ => null,
+  };
+  if (parts == null || parts.length != 4) return null;
+  final x = _normalizedIntSettingNumber(parts[0]);
+  final y = _normalizedIntSettingNumber(parts[1]);
+  final width = _normalizedIntSettingNumber(parts[2]);
+  final height = _normalizedIntSettingNumber(parts[3]);
+  if (x == null || y == null || width == null || height == null) return null;
+  if (width <= 0 || height <= 0) return null;
+  return (x: x, y: y, width: width, height: height);
+}
+
 String? normalizedStringSetting(Object? value) {
   if (value is! String) return null;
   final normalized = value.trim();

@@ -39,33 +39,41 @@ Future<void> initWindow() async {
     minimumSize,
     view,
   );
-  final restorePosition = _restoreWindowPosition(targetSize, view);
+  final restorePlacementPx = _restoreWindowPhysicalRect();
+  final restorePosition = restorePlacementPx == null
+      ? _restoreWindowPosition(targetSize, view)
+      : null;
 
   WindowOptions windowOptions = WindowOptions(
     minimumSize: minimumSize,
     size: targetSize,
-    center: restorePosition == null,
+    center: restorePosition == null && restorePlacementPx == null,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
   );
-  unawaited(windowManager.waitUntilReadyToShow(windowOptions, () async {
-    if (WindowLifecycleService.instance.isExiting) return;
-    if (restorePosition != null) {
-      await windowManager.setPosition(restorePosition);
+  unawaited(
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
       if (WindowLifecycleService.instance.isExiting) return;
-    }
-    await windowManager.show();
-    if (WindowLifecycleService.instance.isExiting) return;
-    if (AppSettings.instance.isWindowMaximized) {
-      await windowManager.maximize();
+      if (restorePlacementPx != null) {
+        await _applyWindowPhysicalRect(restorePlacementPx);
+        if (WindowLifecycleService.instance.isExiting) return;
+      } else if (restorePosition != null) {
+        await windowManager.setPosition(restorePosition);
+        if (WindowLifecycleService.instance.isExiting) return;
+      }
+      await windowManager.show();
       if (WindowLifecycleService.instance.isExiting) return;
-    }
-    if (AppSettings.instance.windowAlwaysOnTop) {
-      await windowManager.setAlwaysOnTop(true);
-      if (WindowLifecycleService.instance.isExiting) return;
-    }
-    await windowManager.focus();
-  }));
+      if (AppSettings.instance.isWindowMaximized) {
+        await windowManager.maximize();
+        if (WindowLifecycleService.instance.isExiting) return;
+      }
+      if (AppSettings.instance.windowAlwaysOnTop) {
+        await windowManager.setAlwaysOnTop(true);
+        if (WindowLifecycleService.instance.isExiting) return;
+      }
+      await windowManager.focus();
+    }),
+  );
 }
 
 Size _clampWindowSize(Size target, Size minimumSize, FlutterView view) {
@@ -107,6 +115,35 @@ Offset? _restoreWindowPosition(Size targetSize, FlutterView view) {
     return saved;
   }
   return null;
+}
+
+WindowPhysicalRect? _restoreWindowPhysicalRect() {
+  final saved = AppSettings.instance.windowPlacementPx;
+  if (saved == null) return null;
+  final screen = windowsVirtualScreen();
+  if (screen == null) return null;
+  // 宽高超出虚拟屏视为坏数据，防止超大整数经 FFI 的 Int32 截断后摆出畸形窗口
+  if (saved.width > screen.width || saved.height > screen.height) {
+    return null;
+  }
+  if (windowPhysicalRectIsOnscreen(rect: saved, screen: screen)) {
+    return saved;
+  }
+  return null;
+}
+
+Future<void> _applyWindowPhysicalRect(WindowPhysicalRect rect) async {
+  try {
+    final hwnd = await windowManager.getId();
+    if (hwnd <= 0) return;
+    if (!setWindowsWindowPhysicalRect(hwnd: hwnd, rect: rect)) return;
+    // 跨屏移动会触发 WM_DPICHANGED，引擎按建议矩形重设窗口，
+    // 让出一个事件循环回合后再按保存值摆放一次兜底
+    await Future<void>.delayed(Duration.zero);
+    setWindowsWindowPhysicalRect(hwnd: hwnd, rect: rect);
+  } catch (_) {
+    // 句柄或 FFI 不可用时保持系统默认位置
+  }
 }
 
 Future<void> loadPrefFont() async {

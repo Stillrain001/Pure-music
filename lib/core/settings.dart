@@ -6,6 +6,7 @@ import 'package:pure_music/core/artist_name_splitter.dart';
 import 'package:pure_music/core/setting_action_state.dart';
 import 'package:pure_music/core/settings/settings_decoder.dart';
 import 'package:pure_music/core/settings/settings_types.dart';
+import 'package:pure_music/core/window_placement.dart';
 import 'package:pure_music/native/rust/api/system_theme.dart';
 import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/core/utils.dart';
@@ -303,6 +304,8 @@ class AppSettings {
   bool enableSidebarFrostedGlass = false;
   Size windowSize = const Size(1280, 756);
   Offset? windowPosition;
+  // 多屏混合缩放下逻辑坐标会随各屏 DPI 漂移，另存一份物理像素矩形用于还原
+  ({int x, int y, int width, int height})? windowPlacementPx;
   bool isWindowMaximized = false;
   WindowCloseBehavior windowCloseBehavior = WindowCloseBehavior.exit;
   // 没选过时，第一次点关闭会询问；选过或在设置里改过则为 true
@@ -416,10 +419,13 @@ class AppSettings {
   }
 
   @visibleForTesting
-  static Future<void> readFromSettingsMapForTest(Map<String, dynamic> settingsMap) =>
-      _readFromSettingsMap(settingsMap);
+  static Future<void> readFromSettingsMapForTest(
+    Map<String, dynamic> settingsMap,
+  ) => _readFromSettingsMap(settingsMap);
 
-  static Future<void> _readFromSettingsMap(Map<String, dynamic> settingsMap) async {
+  static Future<void> _readFromSettingsMap(
+    Map<String, dynamic> settingsMap,
+  ) async {
     if (settingsMap['Version'] == null) {
       return _readFromJsonOld(settingsMap);
     }
@@ -549,7 +555,9 @@ class AppSettings {
     }
   }
 
-  static void _readLyricConversionAndDelaySettings(Map<String, dynamic> settingsMap) {
+  static void _readLyricConversionAndDelaySettings(
+    Map<String, dynamic> settingsMap,
+  ) {
     final zcm = settingsMap['ZhConversionMode'];
     if (zcm != null) {
       final modeName = normalizedSettingEnumName(zcm);
@@ -785,6 +793,10 @@ class AppSettings {
       _instance.windowPosition = Offset(position.x, position.y);
     }
 
+    _instance.windowPlacementPx = normalizedWindowPlacementPxSetting(
+      settingsMap['WindowPlacementPx'],
+    );
+
     final isMaximized = settingsMap['IsWindowMaximized'];
     if (isMaximized != null) {
       _instance.isWindowMaximized = normalizedBoolSetting(
@@ -820,7 +832,9 @@ class AppSettings {
     );
   }
 
-  static void _readDesktopLyricVisibilitySettings(Map<String, dynamic> settingsMap) {
+  static void _readDesktopLyricVisibilitySettings(
+    Map<String, dynamic> settingsMap,
+  ) {
     final sdlr = settingsMap['ShowDesktopLyricRoman'];
     if (sdlr != null) {
       _instance.showDesktopLyricRoman = normalizedBoolSetting(
@@ -866,7 +880,9 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricBehaviorSettings(Map<String, dynamic> settingsMap) {
+  static void _readDesktopLyricBehaviorSettings(
+    Map<String, dynamic> settingsMap,
+  ) {
     final dhop = settingsMap['DesktopHideOnPause'];
     if (dhop != null) {
       _instance.desktopHideOnPause = normalizedBoolSetting(
@@ -916,7 +932,9 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricLayoutSettings(Map<String, dynamic> settingsMap) {
+  static void _readDesktopLyricLayoutSettings(
+    Map<String, dynamic> settingsMap,
+  ) {
     final dvu = settingsMap['DesktopUseVerticalDisplayMode'];
     if (dvu != null) {
       _instance.desktopUseVerticalDisplayMode = normalizedBoolSetting(
@@ -953,7 +971,9 @@ class AppSettings {
     }
   }
 
-  static void _readDesktopLyricTypographySettings(Map<String, dynamic> settingsMap) {
+  static void _readDesktopLyricTypographySettings(
+    Map<String, dynamic> settingsMap,
+  ) {
     final dls = settingsMap['DesktopLyricFontSize'];
     if (dls != null) {
       _instance.desktopLyricFontSize = (dls as num).clamp(12, 60).toDouble();
@@ -1223,6 +1243,16 @@ class AppSettings {
         sizeToSave = currentSize;
       }
       positionToSave = await windowManager.getPosition();
+      try {
+        final hwnd = await windowManager.getId();
+        final rect = hwnd > 0 ? windowsWindowPhysicalRect(hwnd) : null;
+        // 拿不到物理矩形时保留上一次记录的值，避免丢失可用位置
+        if (rect != null) {
+          windowPlacementPx = rect;
+        }
+      } catch (_) {
+        // window_manager 不可用（如测试环境）时跳过
+      }
     }
     final normalizedSize = normalizedWindowSizeSetting([
       sizeToSave.width,
@@ -1239,6 +1269,15 @@ class AppSettings {
       settingsMap['WindowPosition'] = encodedWindowPositionSetting(
         positionToSave.dx,
         positionToSave.dy,
+      );
+    }
+    final placementPx = windowPlacementPx;
+    if (placementPx != null) {
+      settingsMap['WindowPlacementPx'] = encodedWindowPlacementPxSetting(
+        placementPx.x,
+        placementPx.y,
+        placementPx.width,
+        placementPx.height,
       );
     }
     final settingsStr = json.encode(settingsMap);

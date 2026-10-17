@@ -35,4 +35,30 @@ void main() {
     expect(normalizedWindowPositionSetting(','), isNull);
     expect(normalizedWindowPositionSetting(null), isNull);
   });
+
+  test('encoded physical placement roundtrips through the decoder', () {
+    expect(
+      normalizedWindowPlacementPxSetting(
+        encodedWindowPlacementPxSetting(1920, 0, 2200, 2650),
+      ),
+      (x: 1920, y: 0, width: 2200, height: 2650),
+    );
+  });
+
+  test('physical placement keeps negatives for a left-side monitor', () {
+    expect(normalizedWindowPlacementPxSetting('-1152,-40,1200,900'), (
+      x: -1152,
+      y: -40,
+      width: 1200,
+      height: 900,
+    ));
+  });
+
+  test('invalid physical placement is ignored', () {
+    expect(normalizedWindowPlacementPxSetting('1,2,3'), isNull);
+    expect(normalizedWindowPlacementPxSetting('1,2,-3,4'), isNull);
+    expect(normalizedWindowPlacementPxSetting('1,2,3,abc'), isNull);
+    expect(normalizedWindowPlacementPxSetting('1.5,2,3,4'), isNull);
+    expect(normalizedWindowPlacementPxSetting(null), isNull);
+  });
 }
