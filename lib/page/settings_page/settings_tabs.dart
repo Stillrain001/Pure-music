@@ -49,6 +49,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:path/path.dart' as path;
 import 'package:pure_music/core/paths.dart' as app_paths;
 
@@ -2715,6 +2716,34 @@ class _WindowCloseBehaviorControlState
   }
 }
 
+class _WindowAlwaysOnTopControl extends StatefulWidget {
+  const _WindowAlwaysOnTopControl();
+
+  @override
+  State<_WindowAlwaysOnTopControl> createState() =>
+      _WindowAlwaysOnTopControlState();
+}
+
+class _WindowAlwaysOnTopControlState extends State<_WindowAlwaysOnTopControl> {
+  final settings = AppSettings.instance;
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsTile(
+      description: '主窗口置顶',
+      subtitle: '主窗口保持在其他窗口前面',
+      action: Switch(
+        value: settings.windowAlwaysOnTop,
+        onChanged: (v) {
+          setState(() => settings.windowAlwaysOnTop = v);
+          windowManager.setAlwaysOnTop(v);
+          settings.saveSettings();
+        },
+      ),
+    );
+  }
+}
+
 enum _FontTarget { ui, lyric }
 
 class _FontPreviewCard extends StatelessWidget {
@@ -4909,6 +4938,8 @@ class _AdvancedSystemGroup extends StatelessWidget {
         SettingsSectionHeader('系统行为'),
         SizedBox(height: 4.0),
         _WindowCloseBehaviorControl(),
+        SizedBox(height: 16.0),
+        _WindowAlwaysOnTopControl(),
         SizedBox(height: 16.0),
         _PreventSleepOnNowPlayingControl(),
         SizedBox(height: 16.0),

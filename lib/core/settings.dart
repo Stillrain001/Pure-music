@@ -306,6 +306,7 @@ class AppSettings {
   WindowCloseBehavior windowCloseBehavior = WindowCloseBehavior.exit;
   // 没选过时，第一次点关闭会询问；选过或在设置里改过则为 true
   bool windowCloseBehaviorChosen = false;
+  bool windowAlwaysOnTop = false;
   bool preventSleepOnNowPlaying = false;
   bool rememberPlaybackPosition = false;
 
@@ -801,6 +802,10 @@ class AppSettings {
       settingsMap['WindowCloseBehaviorChosen'],
       defaultValue: false,
     );
+    _instance.windowAlwaysOnTop = normalizedBoolSetting(
+      settingsMap['WindowAlwaysOnTop'],
+      defaultValue: false,
+    );
     _instance.preventSleepOnNowPlaying = normalizedBoolSetting(
       settingsMap['PreventSleepOnNowPlaying'],
       defaultValue: false,
@@ -1182,6 +1187,7 @@ class AppSettings {
   Map<String, Object?> _windowFontPlaybackSettingsMap() => {
     'WindowCloseBehavior': windowCloseBehavior.name,
     'WindowCloseBehaviorChosen': windowCloseBehaviorChosen,
+    'WindowAlwaysOnTop': windowAlwaysOnTop,
     'FontFamily': fontFamily,
     'FontPath': fontPath,
     'LyricFontFollowsUi': lyricFontFollowsUi,

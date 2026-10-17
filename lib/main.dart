@@ -60,6 +60,10 @@ Future<void> initWindow() async {
       await windowManager.maximize();
       if (WindowLifecycleService.instance.isExiting) return;
     }
+    if (AppSettings.instance.windowAlwaysOnTop) {
+      await windowManager.setAlwaysOnTop(true);
+      if (WindowLifecycleService.instance.isExiting) return;
+    }
     await windowManager.focus();
   }));
 }
