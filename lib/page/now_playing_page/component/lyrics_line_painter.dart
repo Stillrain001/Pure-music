@@ -884,9 +884,10 @@ class LyricsLinePainter extends CustomPainter {
     List<Shadow>? shadows,
   }) {
     final foreground = _blurForeground(color);
+    final family = lyricRenderFontFamily(fontFamily);
     return TextStyle(
-      fontFamily: fontFamily,
-      fontFamilyFallback: appFontFamilyFallback(fontFamily),
+      fontFamily: family,
+      fontFamilyFallback: appFontFamilyFallback(family),
       fontSize: fontSize,
       color: foreground == null ? color : null,
       foreground: foreground,
@@ -894,7 +895,7 @@ class LyricsLinePainter extends CustomPainter {
       letterSpacing: letterSpacing,
       shadows: shadows,
       height: height,
-      fontVariations: [FontVariation('wght', fontWeight.value.toDouble())],
+      fontVariations: lyricWeightVariations(family, fontWeight.value),
     );
   }
 
@@ -1228,15 +1229,18 @@ class LyricsLinePainter extends CustomPainter {
 
     // ── Shared measurer (avoids creating one TextPainter per character) ──
     final measureTp = obtainTextPainter();
-    TextStyle measureStyle(double fs, FontWeight fw) => TextStyle(
-      fontFamily: fontFamily,
-      fontFamilyFallback: appFontFamilyFallback(fontFamily),
-      fontSize: fs,
-      fontWeight: fw,
-      letterSpacing: 0,
-      height: config.primaryLineHeight(),
-      fontVariations: [FontVariation('wght', fw.value.toDouble())],
-    );
+    TextStyle measureStyle(double fs, FontWeight fw) {
+      final family = lyricRenderFontFamily(fontFamily);
+      return TextStyle(
+        fontFamily: family,
+        fontFamilyFallback: appFontFamilyFallback(family),
+        fontSize: fs,
+        fontWeight: fw,
+        letterSpacing: 0,
+        height: config.primaryLineHeight(),
+        fontVariations: lyricWeightVariations(family, fw.value),
+      );
+    }
 
     // ── Collect all character positions ─────────────────────────────────────
     final charInfos = <_CharInfo>[];
@@ -2764,14 +2768,15 @@ class LyricsLinePainter extends CustomPainter {
         firstOnLine: true,
       );
       final charTp = obtainTextPainter(); // 复用单个 TextPainter 测量字符宽度
+      final family = lyricRenderFontFamily(fontFamily);
       final charStyle = TextStyle(
-        fontFamily: fontFamily,
-        fontFamilyFallback: appFontFamilyFallback(fontFamily),
+        fontFamily: family,
+        fontFamilyFallback: appFontFamilyFallback(family),
         fontSize: fontSize,
         fontWeight: fontWeight,
         letterSpacing: 0,
         height: config.primaryLineHeight(),
-        fontVariations: [FontVariation('wght', fontWeight.value.toDouble())],
+        fontVariations: lyricWeightVariations(family, fontWeight.value),
       );
       final zhMode = LyricViewController.instance.zhConversionMode;
       final convertedChars = <String>[];

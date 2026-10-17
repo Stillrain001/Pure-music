@@ -1321,14 +1321,19 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
       required double letterSpacing,
       List<FontVariation>? fontVariations,
     }) {
+      final family = lyricRenderFontFamily(fontFamily);
+      num axis = fontWeight.value;
+      for (final variation in fontVariations ?? const <FontVariation>[]) {
+        if (variation.axis == 'wght') axis = variation.value;
+      }
       return TextStyle(
-        fontFamily: fontFamily,
-        fontFamilyFallback: appFontFamilyFallback(fontFamily),
+        fontFamily: family,
+        fontFamilyFallback: appFontFamilyFallback(family),
         fontSize: fontSize,
         fontWeight: fontWeight,
         height: height,
         letterSpacing: letterSpacing,
-        fontVariations: fontVariations,
+        fontVariations: lyricWeightVariations(family, axis),
       );
     }
 
