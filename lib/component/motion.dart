@@ -573,7 +573,11 @@ class _DirectionalTabViewState extends State<DirectionalTabView>
                 enabled: isCurrent,
                 child: ExcludeSemantics(
                   excluding: !isCurrent,
-                  child: IgnorePointer(ignoring: !isCurrent, child: result),
+                  child: IgnorePointer(
+                    ignoring: !isCurrent,
+                    // 非当前视图关掉 Hero，避免同 tag 双份被扫描到、落点取错
+                    child: HeroMode(enabled: isCurrent, child: result),
+                  ),
                 ),
               ),
             );

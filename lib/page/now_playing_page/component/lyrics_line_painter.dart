@@ -318,6 +318,7 @@ double lyricCosineLiftPx({
 class LyricCharLiftCache {
   List<double> values = const [];
   List<double> effectProgress = const [];
+  double? cursor;
 }
 
 double lyricHighlightTimeMs({
@@ -388,12 +389,12 @@ double lyricLayoutFontSize({
   return main > sub ? main : sub;
 }
 
-/// 竖直居中缩放，缩小时上下各收一点，行距更均匀。
+/// 从行顶放大，切到当前行时字往下长，不会整行往上跳。
 Alignment lyricLineScaleAlignment(LyricTextAlign align) {
   return switch (align) {
-    LyricTextAlign.left => Alignment.centerLeft,
-    LyricTextAlign.center => Alignment.center,
-    LyricTextAlign.right => Alignment.centerRight,
+    LyricTextAlign.left => Alignment.topLeft,
+    LyricTextAlign.center => Alignment.topCenter,
+    LyricTextAlign.right => Alignment.topRight,
   };
 }
 
@@ -807,6 +808,22 @@ class LyricsLinePainter extends CustomPainter {
 
   double get _effectiveCurrentTimeMs =>
       currentTimeListenable?.value ?? currentTimeMs;
+
+  // 长词上光标一帧冲太远时，上抬每次只跟一小段，避免边界一顿。
+  double _followLiftCursor(double target, double fontSize) {
+    final cache = liftCache;
+    if (cache == null) return target;
+    final prev = cache.cursor;
+    if (prev == null || (target - prev).abs() > fontSize * 8) {
+      cache.cursor = target;
+      return target;
+    }
+    final limit = fontSize * 0.45;
+    final step = (target - prev).clamp(-limit, limit);
+    final next = prev + step;
+    cache.cursor = next;
+    return next;
+  }
 
   double get _opacityFactor => opacity.clamp(0.0, 1.0).toDouble();
 
@@ -1234,10 +1251,6 @@ class LyricsLinePainter extends CustomPainter {
       syncLine.words,
       _effectiveCurrentTimeMs,
     );
-    final liftGate = isMainVocalActive
-        ? (liftGateListenable?.value ?? 1.0)
-        : 1.0;
-
     for (int wordIndex = 0; wordIndex < syncLine.words.length; wordIndex++) {
       final word = syncLine.words[wordIndex];
       final isObscene = word.obscene;
@@ -1320,15 +1333,7 @@ class LyricsLinePainter extends CustomPainter {
 
       double? prevNonPunctProgress;
       double? prevNonPunctEffect;
-      double? prevNonPunctLift;
       int animIndex = 0;
-      var syllableCount = 0;
-      for (final c in convertedChars) {
-        if (!_isPunctuation(c)) syllableCount++;
-      }
-      if (syllableCount < 1) syllableCount = 1;
-      final softLift = !isObscene && lyricUsesSoftLift(word.content);
-      var syllableIndex = 0;
 
       layoutTimedWordChars(
         chars: convertedChars,
@@ -1356,29 +1361,8 @@ class LyricsLinePainter extends CustomPainter {
             }
           }
 
-          final double yLift;
-          if (!isMainVocalActive || config.liftStyle == LyricLiftStyle.cosine) {
-            yLift = 0.0;
-          } else if (isPunctuation && prevNonPunctLift != null) {
-            yLift = prevNonPunctLift!;
-          } else {
-            yLift = lyricGatedLiftPx(
-              lyricVerticalCharLiftPx(
-                nowMs: currentTimeMs,
-                wordStartMs: wordStartMs,
-                wordDurationSec: wordDurationSec,
-                syllableIndex: isPunctuation ? 0 : syllableIndex,
-                syllableCount: syllableCount,
-                softLift: softLift,
-                liftPeak: config.liftPeak,
-              ),
-              liftGate,
-            );
-            if (!isPunctuation) {
-              prevNonPunctLift = yLift;
-              syllableIndex++;
-            }
-          }
+          // 上抬跟唱标走，不在排版时按词时长算。
+          const yLift = 0.0;
 
           final double effectProgress;
           if (isPunctuation && prevNonPunctEffect != null) {
@@ -1838,16 +1822,18 @@ class LyricsLinePainter extends CustomPainter {
         gradientPaint,
       );
 
-      if (config.liftStyle == LyricLiftStyle.cosine && isMainVocalActive) {
+      if (isMainVocalActive) {
         final lineEndX = identical(group, lineGroups.last)
             ? right
             : right + 3.0 * fontSize;
+        // 行还在放大时门是关的，这时不上抬，避免字先跳起来再落回。
+        final liftGate = liftGateListenable?.value ?? 1.0;
         for (final wc in words) {
           for (final info in wc.chars) {
             info.yLift = lyricGatedLiftPx(
               lyricCosineLiftPx(
                 charCenter: info.x + info.width / 2,
-                cursorX: clippedHighlightR,
+                cursorX: _followLiftCursor(clippedHighlightR, fontSize),
                 lineEndX: lineEndX,
                 fontSize: fontSize,
                 liftPeak: config.liftPeak,

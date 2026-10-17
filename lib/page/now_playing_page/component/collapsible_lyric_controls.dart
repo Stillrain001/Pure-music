@@ -110,39 +110,54 @@ class _CollapsibleLyricControlsState extends State<CollapsibleLyricControls>
           ),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (_showControls) ...[
-                  AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _fadeAnimation.value,
-                        child: Transform.translate(
-                          offset: Offset(0, _slideAnimation.value),
-                          filterQuality: FilterQuality.low,
-                          child: const LyricViewControls(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-                IconButton(
-                  tooltip: _isExpanded ? '收起设置' : '歌词设置',
-                  onPressed: _toggleExpanded,
-                  color: scheme.onSecondaryContainer,
-                  icon: AnimatedRotation(
-                    turns: _isExpanded ? 0.5 : 0,
-                    duration: reduceMotion
-                        ? Duration.zero
-                        : MotionDuration.base,
-                    curve: MotionCurve.emphasized,
-                    child: const Icon(Symbols.expand_more, size: 22),
-                  ),
-                ),
-              ],
+            child: ListenableBuilder(
+              listenable: LyricViewController.instance,
+              builder: (context, _) {
+                final adjustingOffset =
+                    LyricViewController.instance.offsetAdjusting;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (_showControls) ...[
+                      AnimatedBuilder(
+                        animation: _animationController,
+                        builder: (context, child) {
+                          return Opacity(
+                            opacity: _fadeAnimation.value,
+                            child: Transform.translate(
+                              offset: Offset(0, _slideAnimation.value),
+                              filterQuality: FilterQuality.low,
+                              child: const LyricViewControls(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    IconButton(
+                      tooltip: adjustingOffset
+                          ? '退出时间调整'
+                          : _isExpanded
+                          ? '收起设置'
+                          : '歌词设置',
+                      onPressed: adjustingOffset
+                          ? LyricViewController.instance.exitLyricOffsetAdjust
+                          : _toggleExpanded,
+                      color: scheme.onSecondaryContainer,
+                      icon: adjustingOffset
+                          ? const Icon(Symbols.close, size: 22)
+                          : AnimatedRotation(
+                              turns: _isExpanded ? 0.5 : 0,
+                              duration: reduceMotion
+                                  ? Duration.zero
+                                  : MotionDuration.base,
+                              curve: MotionCurve.emphasized,
+                              child: const Icon(Symbols.expand_more, size: 22),
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

@@ -66,10 +66,12 @@ class _ExternalLyricResult {
   final String content;
   final String ext;
   final String? transContent;
+  final String? path;
   const _ExternalLyricResult({
     required this.content,
     required this.ext,
     this.transContent,
+    this.path,
   });
 }
 
@@ -141,7 +143,11 @@ Future<_ExternalLyricResult?> _findLyricInDirectory(
             'lyric.candidate',
             'lyric_loader: fuzzy match OK: $ext',
           );
-          best = _ExternalLyricResult(content: content, ext: ext);
+          best = _ExternalLyricResult(
+            content: content,
+            ext: ext,
+            path: entity.path,
+          );
           bestPriority = priority;
         }
       }
@@ -262,6 +268,7 @@ Future<_ExternalLyricResult?> _loadExternalLyric(String audioPath) async {
       content: content,
       ext: ext,
       transContent: transContent,
+      path: path,
     );
   }
 
@@ -535,6 +542,32 @@ void _reportLyricLoad({
     ),
   );
 }
+
+/// 当前这首歌会用到的外置歌词文件。没有则返回空。
+Future<String?> externalLyricPathForAudio(String audioPath) async {
+  return (await _loadExternalLyric(audioPath))?.path;
+}
+
+/// 按外置歌词的同样规则解析一段文本。
+Lyric? parseExternalLyricText(String content, String extension) {
+  final ext = extension.toLowerCase();
+  final normalized = ext.startsWith('.') ? ext : '.$ext';
+  final lyric = _parseExternalToPureLyric(
+    _ExternalLyricResult(content: content, ext: normalized),
+  );
+  if (lyric == null || lyric.lines.isEmpty) return null;
+  return _stripMetadata(lyric);
+}
+
+/// 按内嵌标签的同样规则解析一段文本。
+Lyric? parseEmbeddedLyricText(String content) {
+  final lyric = _parseEmbeddedToPureLyric(content);
+  if (lyric == null || lyric.lines.isEmpty) return null;
+  return _stripMetadata(lyric);
+}
+
+/// 读外置歌词原文，编码处理和播放时一致。
+Future<String?> readLyricFileText(String path) => _safeReadFile(path);
 
 /// 只加载指定的歌词文件，不搜索其他文件或回退到音频内嵌歌词。
 Future<Lyric?> loadLyricFromFile(

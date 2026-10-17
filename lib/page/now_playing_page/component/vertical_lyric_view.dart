@@ -9,6 +9,7 @@ import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/theme.dart';
 import 'package:pure_music/core/route_visibility.dart';
 import 'package:pure_music/core/window_render_gate.dart';
+import 'package:pure_music/lyric/lyric_manual_offset.dart';
 import 'package:pure_music/lyric/lrc.dart';
 import 'package:pure_music/lyric/lyric.dart';
 import 'package:pure_music/lyric/ttml.dart';
@@ -570,8 +571,11 @@ class _VerticalLyricViewState extends State<VerticalLyricView>
                                   enableEdgeSpacer: widget.enableEdgeSpacer,
                                 ),
                       },
+                      // 调整歌词偏移时不跟鼠标离开一起收起，否则栏会消失、退不出来。
                       if (widget.showControls &&
-                          (isHovering || alwaysShowLyricViewControls))
+                          (isHovering ||
+                              alwaysShowLyricViewControls ||
+                              lyricViewController.offsetAdjusting))
                         const Align(
                           key: ValueKey('lyric_controls'),
                           alignment: Alignment.bottomRight,
@@ -644,6 +648,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
   int _staggerFromIndex = -1;
   bool _pendingStaggerScroll = false;
   bool _postDragSkipPending = false;
+  bool _interludePinScheduled = false;
   int _programmaticScrollDepth = 0;
 
   // 同一帧只应用一条普通行更新，保留连续换行的视觉状态。
@@ -715,7 +720,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
   @override
   void initState() {
     super.initState();
-    _displayPositionMs = playbackService.position * 1000.0;
+    _displayPositionMs = lyricTimelineMsDouble(playbackService.position);
     _sharedLyricPositionMs = ValueNotifier(_displayPositionMs);
     final initialOffset = _restoreCachedInitialPosition();
     scrollController = ScrollController(initialScrollOffset: initialOffset);
@@ -738,6 +743,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     playbackService.positionSyncNotifier.addListener(_positionResyncListener);
     playbackService.playerStateNotifier.addListener(_syncSharedLyricTicker);
     lyricService.addListener(_contentResyncListener);
+    LyricManualOffset.instance.addListener(_onManualOffset);
     _syncSharedLyricTicker();
     _startPositionResyncWindow();
     _initLyricView();
@@ -786,7 +792,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     final previousMs = _sharedLyricPositionMs.value;
     final predictedMs =
         previousMs + delta.inMicroseconds / 1000.0 * playbackService.rate.value;
-    final nativeMs = playbackService.position * 1000.0;
+    final nativeMs = lyricTimelineMsDouble(playbackService.position);
     final nextMs = lyricMonotonicPlaybackMs(
       previousMs: previousMs,
       predictedMs: predictedMs,
@@ -921,6 +927,11 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     });
   }
 
+  void _onManualOffset() {
+    if (_disposed || !mounted) return;
+    _queuePositionResync();
+  }
+
   void _queueContentResync() {
     _queuePlaybackResync(forceScroll: true);
   }
@@ -936,7 +947,9 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
 
   void _queuePlaybackResync({required bool forceScroll}) {
     if (_disposed || !mounted) return;
-    _sharedLyricPositionMs.value = playbackService.position * 1000.0;
+    _sharedLyricPositionMs.value = lyricTimelineMsDouble(
+      playbackService.position,
+    );
     _syncSharedLyricTicker();
     if (!shouldAcceptLyricUiUpdate(
       windowFramesEnabled: WindowRenderGate.instance.shouldRender,
@@ -1103,10 +1116,18 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     _scrollTransition.update(delta);
     if (scrollController.hasClients) {
       _runProgrammaticScroll(
-        () => scrollController.jumpTo(_scrollTransition.value),
+        () => scrollController.jumpTo(
+          _snappedScrollOffset(_scrollTransition.value),
+        ),
       );
     }
     if (!_scrollTransition.isActive) {
+      if (scrollController.hasClients) {
+        final snapped = _snappedScrollOffset(scrollController.offset);
+        if ((snapped - scrollController.offset).abs() > 0.01) {
+          _runProgrammaticScroll(() => scrollController.jumpTo(snapped));
+        }
+      }
       _stopScrollTicker();
       _collapseDepartingBackgroundVocal();
     }
@@ -1786,7 +1807,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
       _cachedViewportHeight = 0.0;
       _cachedLyricFontFamily = null;
       _needsInitialScroll = true;
-      _displayPositionMs = playbackService.position * 1000.0;
+      _displayPositionMs = lyricTimelineMsDouble(playbackService.position);
       _pendingScrollRetries = 0;
       _mainLine = 0;
       _pendingStaggerScroll = false;
@@ -1985,6 +2006,48 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     } else {
       _jumpDeltaY = 0;
       _collapseDepartingBackgroundVocal();
+    }
+  }
+
+  /// 间奏行高收完后再按真实布局对齐。进行中的滚动还记着旧高度，会把当前行留在上面。
+  void _schedulePinCurrentLineAfterInterlude() {
+    if (_interludePinScheduled || _disposed || !mounted) return;
+    if (_scrollState == LyricScrollState.userDragging) return;
+    _interludePinScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _interludePinScheduled = false;
+      if (_disposed || !mounted) return;
+      if (_scrollState == LyricScrollState.userDragging) return;
+      _pinCurrentLineToAlignment();
+    });
+  }
+
+  void _pinCurrentLineToAlignment() {
+    if (!scrollController.hasClients) return;
+    final position = scrollController.position;
+    if (!position.hasContentDimensions) return;
+    final targetContext = _lineKeys[_mainLine]?.currentContext;
+    if (targetContext == null || !targetContext.mounted) return;
+    final targetObject = targetContext.findRenderObject() as RenderBox?;
+    if (targetObject == null ||
+        !targetObject.hasSize ||
+        targetObject.size.height <= 0) {
+      return;
+    }
+    final revealed = RenderAbstractViewport.of(
+      targetObject,
+    ).getOffsetToReveal(targetObject, widget.currentLineAlignment);
+    final offset = _snappedScrollOffset(
+      revealed.offset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble(),
+    );
+    _scrollTransition.jumpTo(offset);
+    _stopScrollTicker();
+    if ((offset - scrollController.offset).abs() < 0.5) return;
+    _runProgrammaticScroll(() => scrollController.jumpTo(offset));
+    if (_scrollState == LyricScrollState.programScrolling) {
+      _scrollState = LyricScrollState.idle;
     }
   }
 
@@ -2395,7 +2458,8 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
   _displayLineUpdate(LyricLineUpdate update) {
     final lines = widget.lyric.lines;
     final positionMs =
-        update.positionMs?.toDouble() ?? playbackService.position * 1000.0;
+        update.positionMs?.toDouble() ??
+        lyricTimelineMsDouble(playbackService.position);
     final layoutLines = _renderableLineIndices(update.layoutIndices);
     final mainActiveLines = _renderableLineIndices(update.mainActiveIndices);
     final backgroundActiveLines = _renderableLineIndices(
@@ -2547,7 +2611,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
       preferForward: preferUpcoming,
     );
     if (nextMainLine == null) return;
-    final positionMs = position * 1000.0;
+    final positionMs = lyricTimelineMsDouble(position);
     final positionChanged = (_displayPositionMs - positionMs).abs() > 0.5;
     if (nextMainLine == _mainLine &&
         setEquals(_parallelGroupLines, displayUpdate.groupLines) &&
@@ -2615,7 +2679,8 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     if (lines.isEmpty) return;
 
     final positionMs =
-        update.positionMs?.toDouble() ?? playbackService.position * 1000.0;
+        update.positionMs?.toDouble() ??
+        lyricTimelineMsDouble(playbackService.position);
     final displayUpdate = _displayLineUpdate(update);
     final positionChanged = (_displayPositionMs - positionMs).abs() > 0.5;
     final nextGroupLines = displayUpdate.groupLines;
@@ -3017,6 +3082,8 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
                             onTap: widget.enableSeekOnTap
                                 ? () => _seekToLyricLineWithOriginalIndex(line)
                                 : null,
+                            onSeekCollapseHeightDelta: (_) =>
+                                _schedulePinCurrentLineAfterInterlude(),
                           ),
                         );
                         return lineWidget;
@@ -3069,6 +3136,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     );
     playbackService.playerStateNotifier.removeListener(_syncSharedLyricTicker);
     lyricService.removeListener(_contentResyncListener);
+    LyricManualOffset.instance.removeListener(_onManualOffset);
     WindowRenderGate.instance.framesEnabled.removeListener(
       _onWindowFramesEnabled,
     );

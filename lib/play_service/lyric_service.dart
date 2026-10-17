@@ -6,6 +6,7 @@ import 'dart:math' show max, min;
 import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/lyric/lrc.dart';
 import 'package:pure_music/lyric/lrc_serializer.dart';
+import 'package:pure_music/lyric/lyric_manual_offset.dart';
 import 'package:pure_music/lyric/lyric.dart';
 import 'package:pure_music/lyric/lyric_tag_word_format.dart';
 import 'package:pure_music/lyric/ttml.dart' show Ttml;
@@ -193,6 +194,13 @@ int _lyricLineRenderEndMs(Lyric lyric, LyricLine line) {
   return end;
 }
 
+/// 标签内歌词与待写入文本是否同一份（统一换行、去首尾空白后比较）
+bool _sameLyricTagText(String tagText, String lyricText) {
+  String normalize(String text) =>
+      text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+  return normalize(tagText) == normalize(lyricText);
+}
+
 @visibleForTesting
 class LyricVoiceActivity {
   const LyricVoiceActivity({
@@ -360,7 +368,12 @@ class LyricService extends ChangeNotifier {
     playService.playbackService.playerStateNotifier.addListener(
       _syncLineAdvanceTimer,
     );
+    LyricManualOffset.instance.addListener(_onManualOffsetChanged);
     _syncLineAdvanceTimer();
+  }
+
+  void _onManualOffsetChanged() {
+    findCurrLyricLineAt(playService.playbackService.position);
   }
 
   void _syncLineAdvanceTimer() {
@@ -379,7 +392,7 @@ class LyricService extends ChangeNotifier {
     if (playService.playbackService.playerState != PlayerState.playing) return;
     final lyric = _currLyric;
     if (lyric == null || lyric.lines.isEmpty) return;
-    final posMs = (playService.playbackService.position * 1000).round();
+    final posMs = lyricTimelineMs(playService.playbackService.position);
     final nextBoundaryMs = _nextLyricBoundaryAfter(posMs);
     if (nextBoundaryMs == null) return;
     final speed = playService.playbackService.rate.value;
@@ -519,7 +532,7 @@ class LyricService extends ChangeNotifier {
       findCurrLyricLineAt(pos);
       return;
     }
-    final posMs = (pos * 1000).round();
+    final posMs = lyricTimelineMs(pos);
     final lyric = _currLyric;
     if (lyric == null) return;
     if (lyric is Ttml) {
@@ -690,7 +703,7 @@ class LyricService extends ChangeNotifier {
     int hint = -1,
   }) {
     if (lyric.lines.isEmpty) return null;
-    final posMs = (positionSeconds * 1000).round();
+    final posMs = lyricTimelineMs(positionSeconds);
     if (lyric is Ttml) {
       return _timelineFor(lyric).snapshotAt(
         posMs,
@@ -829,7 +842,7 @@ class LyricService extends ChangeNotifier {
       });
       return;
     }
-    final posMs = (playService.playbackService.position * 1000).round();
+    final posMs = lyricTimelineMs(playService.playbackService.position);
     if (lyric is Ttml) {
       _emitTtmlAt(lyric, posMs, force: true);
       _restartLineAdvanceTimer();
@@ -868,7 +881,7 @@ class LyricService extends ChangeNotifier {
     }
 
     _lastPos = positionSeconds;
-    final posMs = (positionSeconds * 1000).round();
+    final posMs = lyricTimelineMs(positionSeconds);
     if (lyric is Ttml) {
       _ttmlGeneration++;
       _emitTtmlAt(lyric, posMs, force: true);
@@ -1168,6 +1181,7 @@ class LyricService extends ChangeNotifier {
     final nowPlaying = _getNowPlaying();
     if (nowPlaying == null) return;
     final audioPath = nowPlaying.path;
+    unawaited(LyricManualOffset.instance.bind(audioPath));
     final requestToken = _beginLyricRequest(audioPath);
     _activeLyricSourceType = LyricSourceType.local;
     _activeLocalIsExternal = null;
@@ -1345,7 +1359,8 @@ class LyricService extends ChangeNotifier {
           _getNowPlaying()?.path != audioPath) {
         return;
       }
-      final hasEmbedded = existing != null && existing.trim().isNotEmpty;
+      final existingText = existing?.trim() ?? '';
+      final hasEmbedded = existingText.isNotEmpty;
       final lyric = _currLyric;
       if (lyric == null) return;
       // TTML 写入标签会被转成 LRC，按开关决定是否跳过
@@ -1357,6 +1372,11 @@ class LyricService extends ChangeNotifier {
         includeRomanization: AppSettings.instance.lyricTagIncludeRomanization,
       );
       if (lrcText.trim().isEmpty) return;
+      // 标签里已是同一份歌词，说明之前写过且内容未变，不再提示
+      if (hasEmbedded && _sameLyricTagText(existingText, lrcText)) {
+        _lyricWritePromptHistory.markEmbeddedLyricFound(audioPath);
+        return;
+      }
       if (useAutoWrite && !hasEmbedded) {
         _writeLyricTextToTag(audioPath, lrcText, notifyUser: false);
         return;
@@ -1483,6 +1503,107 @@ class LyricService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 把当前偏移写进正在使用的歌词里。外置文件写回文件，否则写进乐曲标签。
+  /// 只有解析结果和时间对得上，才换上新歌词并清掉播放器里的额外偏移。
+  Future<String?> saveCurrentOffsetToTag() async {
+    final nowPlaying = _getNowPlaying();
+    final lyric = _currLyric;
+    if (nowPlaying == null || lyric == null) return '当前没有歌词';
+    final audioPath = nowPlaying.path;
+    final extra = LyricManualOffset.instance.manualMs;
+    if (extra == 0) return '当前偏移是 0，不用写入';
+
+    final externalPath = await _externalLyricPathForSave(audioPath);
+    if (_getNowPlaying()?.path != audioPath) return null;
+
+    final String sourceText;
+    final Lyric? parsed;
+    final online = _activeLyricSourceType != LyricSourceType.local;
+    if (externalPath != null) {
+      final raw = await readLyricFileText(externalPath);
+      if (raw == null || raw.trim().isEmpty) {
+        return '读不到外置歌词，偏移仍记在播放器里';
+      }
+      sourceText = lyricTextWithAddedOffset(raw, extra);
+      parsed = parseExternalLyricText(sourceText, p.extension(externalPath));
+    } else if (online) {
+      final raw = lyric.rawText;
+      if (raw == null || raw.trim().isEmpty) {
+        return '网络歌词写进文件后会对不齐，偏移仍记在播放器里';
+      }
+      sourceText = lyricTextWithAddedOffset(raw, extra);
+      parsed = parseEmbeddedLyricText(sourceText);
+    } else {
+      final embedded = await getLyricFromPath(path: audioPath);
+      final raw = (embedded != null && embedded.trim().isNotEmpty)
+          ? embedded
+          : lyric.rawText;
+      if (raw == null || raw.trim().isEmpty) {
+        return '这份歌词没有原文，偏移仍记在播放器里';
+      }
+      sourceText = lyricTextWithAddedOffset(raw, extra);
+      parsed = parseEmbeddedLyricText(sourceText);
+    }
+    if (_getNowPlaying()?.path != audioPath) return null;
+    if (parsed == null || !lyricOffsetShiftMatches(lyric, parsed, extra)) {
+      return externalPath != null
+          ? '这种外置歌词写回后会对不齐，偏移仍记在播放器里'
+          : '写进标签后会对不齐，偏移仍记在播放器里';
+    }
+
+    try {
+      if (externalPath != null) {
+        await writeTextFileAtomically(externalPath, sourceText);
+      } else {
+        await writeLyricToPath(path: audioPath, lyric: sourceText);
+      }
+    } catch (error, trace) {
+      log.lyric.error('legacy', '写入歌词偏移失败', error: error, stackTrace: trace);
+      return externalPath != null
+          ? '写入歌词文件失败，请查看日志'
+          : '写入标签失败，请查看日志';
+    }
+    if (_getNowPlaying()?.path != audioPath) {
+      LyricManualOffset.instance.forget(audioPath);
+      return null;
+    }
+    _installLyricWithOffsetBaked(audioPath, parsed, externalPath != null);
+    return null;
+  }
+
+  Future<String?> _externalLyricPathForSave(String audioPath) async {
+    if (_activeLocalIsExternal != true) return null;
+    final selected = lyricSources[audioPath]?.localLyricPath;
+    if (selected != null &&
+        selected.isNotEmpty &&
+        await File(selected).exists()) {
+      return selected;
+    }
+    return externalLyricPathForAudio(audioPath);
+  }
+
+  void _installLyricWithOffsetBaked(
+    String audioPath,
+    Lyric parsed,
+    bool external,
+  ) {
+    LyricManualOffset.instance.setManual(0, notify: false);
+    final cacheKey = _localLyricCacheKey(audioPath);
+    _prefetchGeneration++;
+    _lyricCache.remove(cacheKey);
+    final removedPrefetch = _lyricPrefetches.remove(cacheKey);
+    if (removedPrefetch != null) unawaited(removedPrefetch);
+    _activeLyricSourceType = LyricSourceType.local;
+    _activeLocalIsExternal = external;
+    _putLocalLyricCache(cacheKey, parsed);
+    // 画面读的是这份 Future。不换的话，行号已经按新时间走，歌词还是旧的。
+    currLyricFuture = Future.value(parsed);
+    _setCurrLyric(parsed);
+    findCurrLyricLineAt(playService.playbackService.position);
+    LyricManualOffset.instance.notifyListeners();
+    _notifyLyricChangeListeners();
+  }
+
   /// 写入标签后刷新当前歌词：清除本地缓存并重新从标签加载
   void reloadLyricFromTag() {
     final nowPlaying = _getNowPlaying();
@@ -1592,6 +1713,7 @@ class LyricService extends ChangeNotifier {
   void dispose() {
     _cancelLyricWritePrompt();
     _lyricLineStreamController.close();
+    LyricManualOffset.instance.removeListener(_onManualOffsetChanged);
     playService.playbackService.playerStateNotifier.removeListener(
       _syncLineAdvanceTimer,
     );

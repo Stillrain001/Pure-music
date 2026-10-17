@@ -447,15 +447,18 @@ void main() {
   });
 
   group('lyricLineScaleAlignment', () {
-    test('scales a wrapped line from the vertical center', () {
+    test('scales a wrapped line from the top edge', () {
       expect(
         lyricLineScaleAlignment(LyricTextAlign.left),
-        Alignment.centerLeft,
+        Alignment.topLeft,
       );
-      expect(lyricLineScaleAlignment(LyricTextAlign.center), Alignment.center);
+      expect(
+        lyricLineScaleAlignment(LyricTextAlign.center),
+        Alignment.topCenter,
+      );
       expect(
         lyricLineScaleAlignment(LyricTextAlign.right),
-        Alignment.centerRight,
+        Alignment.topRight,
       );
     });
   });

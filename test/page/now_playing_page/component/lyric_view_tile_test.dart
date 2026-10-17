@@ -208,6 +208,15 @@ void main() {
     expect(debugLyricTransitionControllerCount(), 0);
   });
 
+  test('interlude block extent includes the vertical padding', () {
+    expect(lyricTransitionBlockExtent(1, 10), transitionTileHeight + 20);
+    expect(
+      lyricTransitionBlockExtent(0.5, 10),
+      (transitionTileHeight + 20) / 2,
+    );
+    expect(lyricTransitionBlockExtent(0, 10), 0);
+  });
+
   test('seek past an interlude asks for a collapse animation', () {
     expect(
       lyricTransitionShouldAnimateSeekCollapse(

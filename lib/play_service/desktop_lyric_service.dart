@@ -7,6 +7,7 @@ import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/lyric/lrc.dart';
 import 'package:pure_music/lyric/lyric.dart';
 import 'package:pure_music/lyric/ttml.dart' show Ttml;
+import 'package:pure_music/lyric/lyric_manual_offset.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/lyric_service.dart'
     show
@@ -603,7 +604,7 @@ class DesktopLyricService extends ChangeNotifier {
             ? _nextSyntheticLineId--
             : _lineIdForIndex(lineIndex));
     final progressMs =
-        ((_playbackService.position * 1000).round() - lineStartMs).clamp(
+        (lyricTimelineMs(_playbackService.position) - lineStartMs).clamp(
           -60000,
           lineLengthMs,
         );
@@ -836,7 +837,7 @@ class DesktopLyricService extends ChangeNotifier {
       return;
     }
     final progressMs =
-        ((_playbackService.position * 1000).round() - lineStartMs).clamp(
+        (lyricTimelineMs(_playbackService.position) - lineStartMs).clamp(
           -60000,
           _currentLyricLineLengthMs,
         );
@@ -901,7 +902,7 @@ class DesktopLyricService extends ChangeNotifier {
   void _sendDesktopLyricOpeningLine(Lyric? lyric) {
     if (lyric == null || lyric.lines.isEmpty) return;
     sendFullLyricMessage(lyric);
-    final positionMs = (_playbackService.position * 1000).round();
+    final positionMs = lyricTimelineMs(_playbackService.position);
     final preludeLine = desktopLyricPreludeLineAt(lyric, positionMs);
     if (preludeLine != null) {
       _sendPreludeDesktopLyricLine(lyric, preludeLine);

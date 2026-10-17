@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:pure_music/core/lyric_action_state.dart';
+import 'package:pure_music/core/utils.dart';
+import 'package:pure_music/lyric/lyric_manual_offset.dart';
 import 'package:pure_music/core/preference.dart';
 import 'package:pure_music/core/lyric_render_config.dart';
 import 'package:pure_music/core/enums.dart';
@@ -28,6 +32,8 @@ class LyricViewController extends ChangeNotifier {
 
   bool _disposed = false;
   bool _isListening = false;
+  bool offsetAdjusting = false;
+  String? _offsetTrackPath;
   bool hasRomanLyric = false;
   bool hasTranslation = false;
   bool hasMultipleAgents = false;
@@ -45,6 +51,43 @@ class LyricViewController extends ChangeNotifier {
     enableLyricGlow = nowPlayingPagePref.enableLyricGlow;
 
     _listenToLyricChanges();
+    _offsetTrackPath = PlayService.instance.playbackService.nowPlaying?.path;
+    PlayService.instance.playbackService.nowPlayingNotifier.addListener(
+      _handleOffsetTrackChanged,
+    );
+  }
+
+  void _handleOffsetTrackChanged() {
+    final path = PlayService.instance.playbackService.nowPlaying?.path;
+    if (path == _offsetTrackPath) return;
+    _offsetTrackPath = path;
+    if (!offsetAdjusting || _disposed) return;
+    offsetAdjusting = false;
+    notifyListeners();
+  }
+
+  void toggleLyricOffsetAdjust() {
+    if (_disposed) return;
+    if (offsetAdjusting) {
+      exitLyricOffsetAdjust();
+      return;
+    }
+    final path = PlayService.instance.playbackService.nowPlaying?.path;
+    unawaited(LyricManualOffset.instance.bind(path));
+    offsetAdjusting = true;
+    notifyListeners();
+  }
+
+  /// 退出调整：偏移记在这台电脑上，不写进歌曲文件，并回到歌词设置栏。
+  void exitLyricOffsetAdjust() {
+    if (!offsetAdjusting || _disposed) return;
+    final manual = LyricManualOffset.instance;
+    final playing = PlayService.instance.playbackService.nowPlaying?.path;
+    if (playing != null && manual.path == playing) {
+      manual.setManual(manual.manualMs);
+    }
+    offsetAdjusting = false;
+    notifyListeners();
   }
 
   void _listenToLyricChanges() {
@@ -107,6 +150,9 @@ class LyricViewController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _isListening = false;
+    PlayService.instance.playbackService.nowPlayingNotifier.removeListener(
+      _handleOffsetTrackChanged,
+    );
     PlayService.instance.lyricService.removeListener(_checkRomanLyric);
     super.dispose();
   }
@@ -254,8 +300,12 @@ class LyricViewControls extends StatelessWidget {
       if (!lyricViewController.hasMultipleAgents) const _LyricAlignSwitchBtn(),
       const _FontSizeBtn(),
       const _FontWeightBtn(),
+      const _LyricOffsetBtn(),
     ];
 
+    if (lyricViewController.offsetAdjusting) {
+      return const _LyricOffsetPanel();
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -279,6 +329,21 @@ Color _lyricControlForeground(ColorScheme scheme) {
   return playerThemeForeground(
     scheme,
     enabled: AppSettings.instance.useMaterialYouForControls,
+  );
+}
+
+/// 和字号按钮里的「A」同一格。字多时缩小，圆按钮不再被撑宽。
+Widget _lyricBarLabel(String label, Color color) {
+  return SizedBox(
+    width: 32,
+    height: 24,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        label,
+        style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16),
+      ),
+    ),
   );
 }
 
@@ -403,6 +468,189 @@ class _LyricBlurSwitchBtn extends StatelessWidget {
       ),
       color: _lyricControlForeground(scheme),
       icon: Icon(Symbols.blur_on, fill: enabled ? 1 : 0),
+    );
+  }
+}
+
+class _LyricOffsetBtn extends StatelessWidget {
+  const _LyricOffsetBtn();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      onPressed: LyricViewController.instance.toggleLyricOffsetAdjust,
+      tooltip: '调整歌词偏移',
+      color: _lyricControlForeground(scheme),
+      icon: const Icon(Symbols.timer),
+    );
+  }
+}
+
+class _LyricOffsetPanel extends StatelessWidget {
+  const _LyricOffsetPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _lyricControlForeground(Theme.of(context).colorScheme);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        LyricManualOffset.instance,
+        PlayService.instance.lyricService,
+      ]),
+      builder: (context, _) {
+        final ms = LyricManualOffset.instance.manualMs;
+        final label = ms == 0 ? '0' : '${ms > 0 ? '+' : ''}$ms';
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: _withVerticalSpacing([
+            const _SaveOffsetToTagButton(),
+            _OffsetValueLabel(label: label, color: color, milliseconds: ms),
+            const _OffsetStepButton('+100', 100, '歌词提前 100 毫秒'),
+            const _OffsetStepButton('+50', 50, '歌词提前 50 毫秒'),
+            const _OffsetResetButton(),
+            const _OffsetStepButton('-50', -50, '歌词延后 50 毫秒'),
+            const _OffsetStepButton('-100', -100, '歌词延后 100 毫秒'),
+          ], 8.0),
+        );
+      },
+    );
+  }
+}
+
+class _OffsetValueLabel extends StatelessWidget {
+  const _OffsetValueLabel({
+    required this.label,
+    required this.color,
+    required this.milliseconds,
+  });
+
+  final String label;
+  final Color color;
+  final int milliseconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = milliseconds == 0 ? '0 毫秒' : '$label 毫秒';
+    return Tooltip(
+      message: '当前偏移 $shown',
+      child: IconButton(
+        onPressed: () {},
+        color: color,
+        icon: _lyricBarLabel(label, color),
+      ),
+    );
+  }
+}
+
+class _OffsetStepButton extends StatelessWidget {
+  const _OffsetStepButton(this.label, this.deltaMs, this.tooltip);
+
+  final String label;
+  final int deltaMs;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _lyricControlForeground(Theme.of(context).colorScheme);
+    return IconButton(
+      onPressed: () => LyricManualOffset.instance.add(deltaMs),
+      tooltip: tooltip,
+      color: color,
+      icon: _lyricBarLabel(label, color),
+    );
+  }
+}
+
+class _OffsetResetButton extends StatelessWidget {
+  const _OffsetResetButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _lyricControlForeground(Theme.of(context).colorScheme);
+    return IconButton(
+      onPressed: LyricManualOffset.instance.reset,
+      tooltip: '重置',
+      color: color,
+      icon: const Icon(Symbols.restart_alt),
+    );
+  }
+}
+
+class _SaveOffsetToTagButton extends StatefulWidget {
+  const _SaveOffsetToTagButton();
+
+  @override
+  State<_SaveOffsetToTagButton> createState() => _SaveOffsetToTagButtonState();
+}
+
+class _SaveOffsetToTagButtonState extends State<_SaveOffsetToTagButton> {
+  var _busy = false;
+  var _written = false;
+
+  @override
+  void initState() {
+    super.initState();
+    LyricManualOffset.instance.addListener(_onOffsetChanged);
+  }
+
+  @override
+  void dispose() {
+    LyricManualOffset.instance.removeListener(_onOffsetChanged);
+    super.dispose();
+  }
+
+  void _onOffsetChanged() {
+    if (!_written || !mounted) return;
+    setState(() => _written = false);
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final lyricService = PlayService.instance.lyricService;
+    final wroteExternal = lyricService.activeLocalIsExternal == true;
+    final error = await lyricService.saveCurrentOffsetToTag();
+    if (!mounted) return;
+    final keptInPlayer =
+        error != null &&
+        (error.contains('仍记在播放器里') || error.contains('不用写入'));
+    setState(() {
+      _busy = false;
+      _written = error == null;
+    });
+    if (error != null) {
+      showTextOnSnackBar(
+        error,
+        variant: keptInPlayer ? ToastVariant.info : ToastVariant.error,
+      );
+      return;
+    }
+    showTextOnSnackBar(wroteExternal ? '歌词偏移已写入歌词文件' : '歌词偏移已写入标签');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _lyricControlForeground(Theme.of(context).colorScheme);
+    final external =
+        PlayService.instance.lyricService.activeLocalIsExternal == true;
+    final scheme = Theme.of(context).colorScheme;
+    final tooltip = _busy
+        ? '正在写入'
+        : _written
+        ? '已写入'
+        : external
+        ? '保存到歌词文件'
+        : '保存到标签';
+    return IconButton(
+      onPressed: _busy ? null : () => unawaited(_save()),
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        backgroundColor: _lyricControlSelectedBackground(scheme, _written),
+      ),
+      color: color,
+      icon: Icon(Symbols.save, fill: _written ? 1 : 0),
     );
   }
 }

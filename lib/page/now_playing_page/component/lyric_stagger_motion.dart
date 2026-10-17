@@ -208,10 +208,13 @@ class _LyricStaggerTransitionState extends State<LyricStaggerTransition>
     });
   }
 
-  double _visualOffsetY() {
+  double _snappedOffsetY() {
     final raw = lyricStaggerClampedOffset(_controller.value, _originY);
     if (!_controller.isAnimating && raw.abs() < 0.05) return 0.0;
-    return raw;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final scale = dpr <= 0 ? 1.0 : dpr;
+    final snapped = (raw * scale).round() / scale;
+    return snapped.abs() < 0.01 ? 0.0 : snapped;
   }
 
   @override
@@ -225,7 +228,11 @@ class _LyricStaggerTransitionState extends State<LyricStaggerTransition>
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: _controller,
     builder: (context, child) =>
-        Transform.translate(offset: Offset(0, _visualOffsetY()), child: child),
+        Transform.translate(
+          offset: Offset(0, _snappedOffsetY()),
+          filterQuality: FilterQuality.none,
+          child: child,
+        ),
     child: widget.child,
   );
 }

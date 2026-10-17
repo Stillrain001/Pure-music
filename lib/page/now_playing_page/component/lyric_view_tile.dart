@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/core/theme.dart';
+import 'package:pure_music/lyric/lyric_manual_offset.dart';
 import 'package:pure_music/lyric/lrc.dart';
 import 'package:pure_music/lyric/lyric.dart';
 import 'package:pure_music/native/bass/bass_player.dart';
@@ -106,6 +107,12 @@ bool lyricTransitionShouldAnimateSeekCollapse({
   return sinceStartMs > lengthMs || sinceStartMs < 0;
 }
 
+/// 间奏占位高度，含上下留白，和行组件实际布局一致。
+double lyricTransitionBlockExtent(double heightFactor, double verticalPadding) {
+  if (heightFactor <= 0) return 0;
+  return (transitionTileHeight + verticalPadding * 2) * heightFactor;
+}
+
 double lyricTransitionHeightFactor({
   required double progress,
   required double enterFraction,
@@ -166,6 +173,9 @@ class LyricTransitionTile extends StatefulWidget {
 
   /// 行内上下留白，随出场一起收起，由外层行组件传入。
   final double verticalPadding;
+
+  /// 手动跳出间奏时行高变化量（负值表示在收）。列表用它把当前行拉回原高度。
+  final ValueChanged<double>? onSeekCollapseHeightDelta;
   const LyricTransitionTile({
     super.key,
     this.lrcLine,
@@ -177,6 +187,7 @@ class LyricTransitionTile extends StatefulWidget {
     this.useMaterialYouColor = true,
     this.animateVisibilityWithProgress = true,
     this.verticalPadding = 0.0,
+    this.onSeekCollapseHeightDelta,
   });
 
   @override
@@ -197,6 +208,14 @@ class _LyricTransitionTileState extends State<LyricTransitionTile>
       widget.enableBreathing,
       widget.positionMs,
     );
+    _hookCollapsePin();
+  }
+
+  void _hookCollapsePin() {
+    controller.onLayoutHeightJumped = () {
+      if (!mounted) return;
+      widget.onSeekCollapseHeightDelta?.call(-1);
+    };
   }
 
   @override
@@ -212,6 +231,7 @@ class _LyricTransitionTileState extends State<LyricTransitionTile>
         widget.enableBreathing,
         widget.positionMs,
       );
+      _hookCollapsePin();
     }
     if (widget.positionMs != null &&
         widget.positionMs != oldWidget.positionMs) {
@@ -232,41 +252,50 @@ class _LyricTransitionTileState extends State<LyricTransitionTile>
       sinceStartMs: sinceStartMs,
       lengthMs: lengthMs,
     )) {
-      _startSeekCollapse();
-      controller.updatePositionMs(positionMs, holdHeight: true);
+      final collapsing = _startSeekCollapse();
+      controller.updatePositionMs(positionMs, holdHeight: collapsing);
       return;
     }
-    if (sinceStartMs >= 0 && sinceStartMs <= lengthMs) {
-      _stopSeekCollapse();
-    }
+    _stopSeekCollapse();
     controller.updatePositionMs(positionMs);
   }
 
-  void _startSeekCollapse() {
-    if (_seekCollapse != null) return;
+  /// 返回 true 表示正在把间奏行高收掉，进度先别改写高度。
+  bool _startSeekCollapse() {
+    if (_seekCollapse != null && _seekCollapse!.isAnimating) return true;
+    _stopSeekCollapse();
     final from = controller.heightFactor.value;
     if (from <= 0.001) {
       controller.heightFactor.value = 0;
-      return;
+      controller.releaseHeightHold();
+      return false;
     }
     final seekCollapse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
     _seekCollapse = seekCollapse;
-    final anim = CurvedAnimation(
-      parent: seekCollapse,
-      curve: Curves.easeInCubic,
-    );
     seekCollapse.addListener(() {
-      controller.heightFactor.value = from * (1.0 - anim.value);
+      final t = Curves.easeInCubic.transform(seekCollapse.value);
+      final next = from * (1.0 - t);
+      final previous = controller.heightFactor.value;
+      controller.heightFactor.value = next;
+      _emitSeekCollapseHeightDelta(previous, next);
     });
     seekCollapse.addStatusListener((status) {
-      if (status != AnimationStatus.completed) return;
+      if (status != AnimationStatus.completed || !mounted) return;
+      final previous = controller.heightFactor.value;
       controller.heightFactor.value = 0;
+      _emitSeekCollapseHeightDelta(previous, 0);
       controller.releaseHeightHold();
+      if (!identical(_seekCollapse, seekCollapse)) return;
+      _seekCollapse = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        seekCollapse.dispose();
+      });
     });
     seekCollapse.forward();
+    return true;
   }
 
   void _stopSeekCollapse() {
@@ -274,9 +303,31 @@ class _LyricTransitionTileState extends State<LyricTransitionTile>
     _seekCollapse = null;
   }
 
+  void _emitSeekCollapseHeightDelta(double previousFactor, double nextFactor) {
+    if (!widget.animateVisibilityWithProgress || widget.compact) return;
+    final delta =
+        lyricTransitionBlockExtent(nextFactor, widget.verticalPadding) -
+        lyricTransitionBlockExtent(previousFactor, widget.verticalPadding);
+    if (delta.abs() < 0.01) return;
+    widget.onSeekCollapseHeightDelta?.call(delta);
+  }
+
   @override
   void dispose() {
+    final factor = controller.heightFactor.value;
+    final collapsing = _seekCollapse != null;
+    final reportRemaining = widget.onSeekCollapseHeightDelta;
     _stopSeekCollapse();
+    if (collapsing &&
+        factor > 0.001 &&
+        reportRemaining != null &&
+        widget.animateVisibilityWithProgress &&
+        !widget.compact) {
+      final delta = -lyricTransitionBlockExtent(factor, widget.verticalPadding);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        reportRemaining(delta);
+      });
+    }
     controller.dispose();
     super.dispose();
   }
@@ -542,6 +593,7 @@ class _TransitionControllerManager {
       PlayService.instance.playbackService.playerStateNotifier.addListener(
         _playerStateListener,
       );
+      LyricManualOffset.instance.addListener(_onManualOffset);
     }
     _controllers.add(controller);
     controller._isPlaying = _isPlaying;
@@ -557,6 +609,7 @@ class _TransitionControllerManager {
       PlayService.instance.playbackService.playerStateNotifier.removeListener(
         _playerStateListener,
       );
+      LyricManualOffset.instance.removeListener(_onManualOffset);
     } else {
       _syncProgressTicker();
     }
@@ -569,8 +622,15 @@ class _TransitionControllerManager {
     _syncProgressTicker();
   }
 
+  void _onManualOffset() {
+    _syncNativePosition();
+    _updateControllers(_estimatedPosition);
+  }
+
   void _syncNativePosition() {
-    _syncedPosition = PlayService.instance.playbackService.position;
+    _syncedPosition =
+        lyricTimelineMsDouble(PlayService.instance.playbackService.position) /
+        1000.0;
     _lastNativeSyncMs = DateTime.now().millisecondsSinceEpoch;
     _positionClock
       ..reset()
@@ -648,6 +708,7 @@ class _TransitionControllerManager {
       PlayService.instance.playbackService.playerStateNotifier.removeListener(
         _playerStateListener,
       );
+      LyricManualOffset.instance.removeListener(_onManualOffset);
     }
   }
 }
@@ -665,6 +726,7 @@ class LyricTransitionTileController extends ChangeNotifier {
   final playbackService = PlayService.instance.playbackService;
 
   double progress = 0;
+  VoidCallback? onLayoutHeightJumped;
 
   /// 进出场固定时长换算出的进度比例，构造时按行时长算好。
   double enterFraction = 1e-6;
@@ -702,7 +764,7 @@ class LyricTransitionTileController extends ChangeNotifier {
             .clamp(0.0, 1.0);
     final positionMs =
         initialPositionMs ??
-        PlayService.instance.playbackService.position * 1000.0;
+        lyricTimelineMsDouble(PlayService.instance.playbackService.position);
     skipEnter = lyricTransitionSkipEnter(
       startMs: startMs,
       lengthMs: lengthMs.toInt(),
@@ -775,6 +837,7 @@ class LyricTransitionTileController extends ChangeNotifier {
     }
     progress = max(sinceStart, 0) / lengthInMs;
     if (!_holdHeight) {
+      final previous = heightFactor.value;
       final nextHeight = lyricTransitionHeightFactor(
         progress: progress.clamp(0.0, 1.0),
         enterFraction: enterFraction,
@@ -782,9 +845,11 @@ class LyricTransitionTileController extends ChangeNotifier {
         exitEnd: exitEndFraction,
         skipEnter: skipEnter,
       );
-      if ((nextHeight - heightFactor.value).abs() > 0.001) {
+      final jumped = previous - nextHeight > 0.2;
+      if ((nextHeight - previous).abs() > 0.001) {
         heightFactor.value = nextHeight;
       }
+      if (jumped) onLayoutHeightJumped?.call();
     }
     notifyListeners();
 

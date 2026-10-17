@@ -222,42 +222,15 @@ void main() {
     });
   });
 
-  group('scale lift gate threshold', () {
-    test('opens at 90 percent of travel, not at the start', () {
-      expect(
-        lyricScaleReachedLiftGate(start: 0.95, target: 1.0, value: 0.95),
-        isFalse,
-      );
-      expect(
-        lyricScaleReachedLiftGate(start: 0.95, target: 1.0, value: 0.994),
-        isFalse,
-      );
-      expect(
-        lyricScaleReachedLiftGate(start: 0.95, target: 1.0, value: 0.995),
-        isTrue,
-      );
-      expect(
-        lyricScaleReachedLiftGate(start: 0.95, target: 1.0, value: 1.0),
-        isTrue,
-      );
+  group('scale lift gate waits until the line size settles', () {
+    test('stays closed while the line is still scaling up', () {
+      expect(lyricScaleSettledForLift(target: 1.0, value: 0.95), isFalse);
+      expect(lyricScaleSettledForLift(target: 1.0, value: 0.985), isFalse);
     });
 
-    test('treats zero travel as already open', () {
-      expect(
-        lyricScaleReachedLiftGate(start: 1.0, target: 1.0, value: 1.0),
-        isTrue,
-      );
-    });
-
-    test('works when shrinking toward the inactive scale', () {
-      expect(
-        lyricScaleReachedLiftGate(start: 1.0, target: 0.95, value: 0.956),
-        isFalse,
-      );
-      expect(
-        lyricScaleReachedLiftGate(start: 1.0, target: 0.95, value: 0.955),
-        isTrue,
-      );
+    test('opens only once the line is at the target size', () {
+      expect(lyricScaleSettledForLift(target: 1.0, value: 0.991), isTrue);
+      expect(lyricScaleSettledForLift(target: 1.0, value: 1.0), isTrue);
     });
   });
 
@@ -301,17 +274,20 @@ void main() {
     });
   });
 
-  group('scale anchor is vertically centered', () {
+  group('scale anchor stays on the top edge', () {
     test('alignment is center and measureHeight is unchanged', () {
       final height = _measure(_config());
       expect(
         lyricLineScaleAlignment(LyricTextAlign.left),
-        Alignment.centerLeft,
+        Alignment.topLeft,
       );
-      expect(lyricLineScaleAlignment(LyricTextAlign.center), Alignment.center);
+      expect(
+        lyricLineScaleAlignment(LyricTextAlign.center),
+        Alignment.topCenter,
+      );
       expect(
         lyricLineScaleAlignment(LyricTextAlign.right),
-        Alignment.centerRight,
+        Alignment.topRight,
       );
       expect(_measure(_config()), height);
     });
@@ -373,7 +349,8 @@ void main() {
     final first = List<double>.from(debugLyricCharYLifts);
     paintAt(4016);
     expect(debugLyricCharYLifts, first);
-    expect(first, everyElement(-2));
+    // 唱完后停在余弦峰值。字号 32、峰值 2 时是 3 像素，不是旧弹簧的 2 像素。
+    expect(first, everyElement(-3));
   });
 
   test('settled line does not request another frame', () {
