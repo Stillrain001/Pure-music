@@ -29,7 +29,7 @@ class NowPlayingPagePreference {
     this.enableLyricBlur, {
     this.showLyricRoman = true,
     this.rubyPosition = RubyPosition.below,
-    this.enableLyricGlow = false,
+    this.enableLyricGlow = true,
     this.liftStyle = LyricLiftStyle.vertical,
     this.liftPeak = 2.0,
     this.liftDurationMs = lyricVerticalLiftDurationMs,
@@ -199,7 +199,7 @@ class NowPlayingPagePreference {
       rubyPosition:
           RubyPosition.fromString((map['rubyPosition'] as String?) ?? '') ??
           RubyPosition.below,
-      enableGlow: _normalizedBool(map['enableLyricGlow'], defaultValue: false),
+      enableGlow: _normalizedBool(map['enableLyricGlow'], defaultValue: true),
       liftStyle:
           LyricLiftStyle.fromString((map['liftStyle'] as String?) ?? '') ??
           LyricLiftStyle.vertical,
