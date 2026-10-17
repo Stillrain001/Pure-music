@@ -809,15 +809,15 @@ class LyricsLinePainter extends CustomPainter {
   double get _effectiveCurrentTimeMs =>
       currentTimeListenable?.value ?? currentTimeMs;
 
-  // 长词上光标一帧冲太远时，上抬每次只跟一小段，避免边界一顿。
-  double _followLiftCursor(double target, double fontSize) {
+  // 切行第一帧从行首追上唱标。直接跳到唱标处，已经唱过的字会整段抬起来。
+  double _followLiftCursor(
+    double target,
+    double fontSize, {
+    required double originX,
+  }) {
     final cache = liftCache;
     if (cache == null) return target;
-    final prev = cache.cursor;
-    if (prev == null || (target - prev).abs() > fontSize * 8) {
-      cache.cursor = target;
-      return target;
-    }
+    final prev = cache.cursor ?? originX;
     final limit = fontSize * 0.45;
     final step = (target - prev).clamp(-limit, limit);
     final next = prev + step;
@@ -1830,14 +1830,18 @@ class LyricsLinePainter extends CustomPainter {
         final lineEndX = identical(group, lineGroups.last)
             ? right
             : right + 3.0 * fontSize;
-        // 行还在放大时门是关的，这时不上抬，避免字先跳起来再落回。
+        // 唱标从行首追上来，已经唱过的字不会在切行那一帧整段抬起。
         final liftGate = liftGateListenable?.value ?? 1.0;
         for (final wc in words) {
           for (final info in wc.chars) {
             info.yLift = lyricGatedLiftPx(
               lyricCosineLiftPx(
                 charCenter: info.x + info.width / 2,
-                cursorX: _followLiftCursor(clippedHighlightR, fontSize),
+                cursorX: _followLiftCursor(
+                  clippedHighlightR,
+                  fontSize,
+                  originX: left,
+                ),
                 lineEndX: lineEndX,
                 fontSize: fontSize,
                 liftPeak: config.liftPeak,

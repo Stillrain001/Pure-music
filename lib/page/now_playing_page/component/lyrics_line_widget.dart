@@ -151,7 +151,7 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
   Timer? _floatDelayTimer;
   Timer? _blurDelayTimer;
   Completer<void>? _scaleCompleter;
-  int _liftGateGen = 0;
+
 
   void _clearHeightCache() {
     _cachedLineHeight = null;
@@ -307,10 +307,6 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
     );
   }
 
-  void _cancelLiftGateWait() {
-    _liftGateGen++;
-  }
-
   void _runAfterStagger(
     Timer? timer,
     void Function(Timer?) save,
@@ -376,34 +372,6 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
       });
     });
     return completer.future;
-  }
-
-  void _openLiftGate(int gen, {required bool alsoFloat}) {
-    if (!mounted || gen != _liftGateGen || widget.distance != 0) return;
-    _liftGateController.stop();
-    _liftGateController.value = 1;
-    if (alsoFloat) _animateFloat(ignoreStaggerDelay: true);
-  }
-
-  /// 等这一行自己的缩放停稳再开上抬。门直接开到 1，已经唱到的字补到当前高度。
-  void _armLiftGateAfterScale(
-    Future<void> scaleFuture, {
-    required bool alsoFloat,
-  }) {
-    final gen = ++_liftGateGen;
-    final target = _config.mainLineScale * _config.activeLineScaleMultiplier;
-    if (lyricScaleSettledForLift(
-      target: target,
-      value: _scaleController.value,
-    )) {
-      _openLiftGate(gen, alsoFloat: alsoFloat);
-      return;
-    }
-    _liftGateController.stop();
-    _liftGateController.value = 0;
-    scaleFuture.then((_) {
-      _openLiftGate(gen, alsoFloat: alsoFloat);
-    });
   }
 
   double _blurSigmaTarget(LyricRenderConfig config) {
@@ -847,14 +815,17 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
     }
 
     if (isActive != wasActive) {
-      _cancelLiftGateWait();
-      final scaleFuture = _animateScale();
+      _animateScale();
       if (isActive) {
-        _armLiftGateAfterScale(
-          scaleFuture,
-          alsoFloat: !widget.usesAuthoredTiming || authoredFloatAfterScale,
-        );
+        // 门保持开着，上抬从行首跟上唱标，不要等放大结束再整段弹上去。
+        _liftGateController.stop();
+        _liftGateController.value = 1;
+        _liftCache.cursor = null;
+        if (!widget.usesAuthoredTiming || authoredFloatAfterScale) {
+          _animateFloat(ignoreStaggerDelay: true);
+        }
       } else {
+        _liftCache.cursor = null;
         if (!widget.usesAuthoredTiming) _animateFloat();
       }
       _cachedPainter = null;
@@ -902,7 +873,6 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
     _scaleDelayTimer?.cancel();
     _floatDelayTimer?.cancel();
     _blurDelayTimer?.cancel();
-    _cancelLiftGateWait();
     if (_scaleCompleter != null && !_scaleCompleter!.isCompleted) {
       _scaleCompleter!.complete();
     }
