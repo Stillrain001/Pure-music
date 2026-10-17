@@ -648,7 +648,7 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
   int _staggerFromIndex = -1;
   bool _pendingStaggerScroll = false;
   bool _postDragSkipPending = false;
-  bool _interludePinScheduled = false;
+
   int _programmaticScrollDepth = 0;
 
   // 同一帧只应用一条普通行更新，保留连续换行的视觉状态。
@@ -2014,46 +2014,29 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
     }
   }
 
-  /// 间奏行高收完后再按真实布局对齐。进行中的滚动还记着旧高度，会把当前行留在上面。
-  void _schedulePinCurrentLineAfterInterlude() {
-    if (_interludePinScheduled || _disposed || !mounted) return;
+  /// 上面的行变高或变矮时，滚动跟着平移同样的距离，当前行停在原地。
+  void _offsetScrollForLineHeightDelta(int lineIndex, double delta) {
+    if (delta.abs() < 0.01 || !scrollController.hasClients) return;
     if (_scrollState == LyricScrollState.userDragging) return;
-    _interludePinScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _interludePinScheduled = false;
-      if (_disposed || !mounted) return;
-      if (_scrollState == LyricScrollState.userDragging) return;
-      _pinCurrentLineToAlignment();
-    });
-  }
-
-  void _pinCurrentLineToAlignment() {
-    if (!scrollController.hasClients) return;
+    if (lineIndex > _mainLine) return;
+    final align = lineIndex == _mainLine
+        ? widget.currentLineAlignment.clamp(0.0, 1.0)
+        : 1.0;
+    final applied = delta * align;
+    if (applied.abs() < 0.01) return;
     final position = scrollController.position;
     if (!position.hasContentDimensions) return;
-    final targetContext = _lineKeys[_mainLine]?.currentContext;
-    if (targetContext == null || !targetContext.mounted) return;
-    final targetObject = targetContext.findRenderObject() as RenderBox?;
-    if (targetObject == null ||
-        !targetObject.hasSize ||
-        targetObject.size.height <= 0) {
-      return;
+    final next = (scrollController.offset + applied)
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    final actual = next - scrollController.offset;
+    if (actual.abs() < 0.01) return;
+    if (_scrollTransition.isActive) {
+      _scrollTransition.shiftBy(actual);
     }
-    final revealed = RenderAbstractViewport.of(
-      targetObject,
-    ).getOffsetToReveal(targetObject, widget.currentLineAlignment);
-    final offset = _snappedScrollOffset(
-      revealed.offset
-          .clamp(position.minScrollExtent, position.maxScrollExtent)
-          .toDouble(),
+    _runProgrammaticScroll(
+      () => scrollController.jumpTo(_snappedScrollOffset(next)),
     );
-    _scrollTransition.jumpTo(offset);
-    _stopScrollTicker();
-    if ((offset - scrollController.offset).abs() < 0.5) return;
-    _runProgrammaticScroll(() => scrollController.jumpTo(offset));
-    if (_scrollState == LyricScrollState.programScrolling) {
-      _scrollState = LyricScrollState.idle;
-    }
   }
 
   /// ValueTransition 驱动的丝滑滚动
@@ -3087,8 +3070,8 @@ class _VerticalLyricScrollViewState extends State<_VerticalLyricScrollView>
                             onTap: widget.enableSeekOnTap
                                 ? () => _seekToLyricLineWithOriginalIndex(line)
                                 : null,
-                            onSeekCollapseHeightDelta: (_) =>
-                                _schedulePinCurrentLineAfterInterlude(),
+                            onSeekCollapseHeightDelta: (delta) =>
+                                _offsetScrollForLineHeightDelta(i, delta),
                           ),
                         );
                         return lineWidget;

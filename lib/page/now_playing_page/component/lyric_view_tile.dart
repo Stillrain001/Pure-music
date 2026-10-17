@@ -212,9 +212,13 @@ class _LyricTransitionTileState extends State<LyricTransitionTile>
   }
 
   void _hookCollapsePin() {
-    controller.onLayoutHeightJumped = () {
+    controller.onLayoutHeightJumped = (previous, next) {
       if (!mounted) return;
-      widget.onSeekCollapseHeightDelta?.call(-1);
+      final delta =
+          lyricTransitionBlockExtent(next, widget.verticalPadding) -
+          lyricTransitionBlockExtent(previous, widget.verticalPadding);
+      if (delta.abs() < 0.01) return;
+      widget.onSeekCollapseHeightDelta?.call(delta);
     };
   }
 
@@ -726,7 +730,7 @@ class LyricTransitionTileController extends ChangeNotifier {
   final playbackService = PlayService.instance.playbackService;
 
   double progress = 0;
-  VoidCallback? onLayoutHeightJumped;
+  void Function(double previous, double next)? onLayoutHeightJumped;
 
   /// 进出场固定时长换算出的进度比例，构造时按行时长算好。
   double enterFraction = 1e-6;
@@ -849,7 +853,7 @@ class LyricTransitionTileController extends ChangeNotifier {
       if ((nextHeight - previous).abs() > 0.001) {
         heightFactor.value = nextHeight;
       }
-      if (jumped) onLayoutHeightJumped?.call();
+      if (jumped) onLayoutHeightJumped?.call(previous, nextHeight);
     }
     notifyListeners();
 

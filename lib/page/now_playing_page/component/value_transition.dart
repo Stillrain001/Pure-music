@@ -54,6 +54,13 @@ class ValueTransition<T extends num> {
     _active = false;
   }
 
+  // 内容高度变了之后，把正在进行的滚动整体平移，避免当前行被甩开。
+  void shiftBy(num delta) {
+    value = (value + delta) as T;
+    _start = (_start + delta) as T;
+    _target = (_target + delta) as T;
+  }
+
   void update(Duration elapsed) {
     if (!_active) return;
     _elapsed += elapsed;
