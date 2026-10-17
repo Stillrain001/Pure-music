@@ -820,12 +820,12 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
         // 门保持开着，上抬从行首跟上唱标，不要等放大结束再整段弹上去。
         _liftGateController.stop();
         _liftGateController.value = 1;
-        _liftCache.cursor = null;
+        _liftCache.resetCursor();
         if (!widget.usesAuthoredTiming || authoredFloatAfterScale) {
           _animateFloat(ignoreStaggerDelay: true);
         }
       } else {
-        _liftCache.cursor = null;
+        _liftCache.resetCursor();
         if (!widget.usesAuthoredTiming) _animateFloat();
       }
       _cachedPainter = null;
@@ -851,7 +851,7 @@ class _LyricsLineWidgetState extends State<LyricsLineWidget>
       _cachedPainter = null;
       _liftCache.values = const [];
       _liftCache.effectProgress = const [];
-      _liftCache.cursor = null;
+      _liftCache.resetCursor();
       _clearHeightCache();
       _frozenHeight = null;
       _pendingSeekMs = null;

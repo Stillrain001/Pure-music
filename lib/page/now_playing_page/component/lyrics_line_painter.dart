@@ -319,6 +319,12 @@ class LyricCharLiftCache {
   List<double> values = const [];
   List<double> effectProgress = const [];
   double? cursor;
+  final Map<int, double> rowCursors = {};
+
+  void resetCursor() {
+    cursor = null;
+    rowCursors.clear();
+  }
 }
 
 double lyricHighlightTimeMs({
@@ -809,19 +815,20 @@ class LyricsLinePainter extends CustomPainter {
   double get _effectiveCurrentTimeMs =>
       currentTimeListenable?.value ?? currentTimeMs;
 
-  // 切行第一帧从行首追上唱标。直接跳到唱标处，已经唱过的字会整段抬起来。
+  // 每一视觉行单独追上自己的唱标。折行后的字横坐标又从左边开始，不能共用上一行的唱标。
   double _followLiftCursor(
     double target,
     double fontSize, {
     required double originX,
+    required int row,
   }) {
     final cache = liftCache;
     if (cache == null) return target;
-    final prev = cache.cursor ?? originX;
+    final prev = cache.rowCursors[row] ?? originX;
     final limit = fontSize * 0.45;
     final step = (target - prev).clamp(-limit, limit);
     final next = prev + step;
-    cache.cursor = next;
+    cache.rowCursors[row] = next;
     return next;
   }
 
@@ -1643,7 +1650,8 @@ class LyricsLinePainter extends CustomPainter {
     }
 
     // ── Per visual line ────────────────────────────────────────────────────
-    for (final group in lineGroups) {
+    for (var groupIndex = 0; groupIndex < lineGroups.length; groupIndex++) {
+      final group = lineGroups[groupIndex];
       if (group.chars.isEmpty) continue;
 
       final words = <_WordPaintInfo>[];
@@ -1830,18 +1838,20 @@ class LyricsLinePainter extends CustomPainter {
         final lineEndX = identical(group, lineGroups.last)
             ? right
             : right + 3.0 * fontSize;
-        // 唱标从行首追上来，已经唱过的字不会在切行那一帧整段抬起。
+        // 这一视觉行只跟自己的唱标。还没唱到的折行保持原高度。
         final liftGate = liftGateListenable?.value ?? 1.0;
+        final cursorX = _followLiftCursor(
+          clippedHighlightR,
+          fontSize,
+          originX: left,
+          row: groupIndex,
+        );
         for (final wc in words) {
           for (final info in wc.chars) {
             info.yLift = lyricGatedLiftPx(
               lyricCosineLiftPx(
                 charCenter: info.x + info.width / 2,
-                cursorX: _followLiftCursor(
-                  clippedHighlightR,
-                  fontSize,
-                  originX: left,
-                ),
+                cursorX: cursorX,
                 lineEndX: lineEndX,
                 fontSize: fontSize,
                 liftPeak: config.liftPeak,
