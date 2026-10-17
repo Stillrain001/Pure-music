@@ -239,6 +239,7 @@ class AppSettings {
   bool desktopShowNowPlayingInfo = true;
   bool desktopHideOnPause = false;
   bool desktopHoverHide = false;
+  bool desktopHoverUnlock = true;
   bool desktopFullscreenHide = false;
   double desktopLineGap = 4.0;
   bool desktopEnableStroke = true;
@@ -882,6 +883,14 @@ class AppSettings {
       );
     }
 
+    final dhu = settingsMap['DesktopHoverUnlock'];
+    if (dhu != null) {
+      _instance.desktopHoverUnlock = normalizedBoolSetting(
+        dhu,
+        defaultValue: true,
+      );
+    }
+
     final dfh = settingsMap['DesktopFullscreenHide'];
     if (dfh != null) {
       _instance.desktopFullscreenHide = normalizedBoolSetting(
@@ -1139,6 +1148,7 @@ class AppSettings {
     'DesktopShowNowPlayingInfo': desktopShowNowPlayingInfo,
     'DesktopHideOnPause': desktopHideOnPause,
     'DesktopHoverHide': desktopHoverHide,
+    'DesktopHoverUnlock': desktopHoverUnlock,
     'DesktopFullscreenHide': desktopFullscreenHide,
     'DesktopEnableStroke': desktopEnableStroke,
     'DesktopEnablePinTop': desktopEnablePinTop,

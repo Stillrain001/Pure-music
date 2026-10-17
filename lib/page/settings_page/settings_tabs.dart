@@ -3613,6 +3613,7 @@ void syncDesktopLyricConfig(BuildContext context) {
     useVerticalDisplayMode: settings.desktopUseVerticalDisplayMode,
     showDoubleLine: showDoubleLine,
     hoverHide: settings.desktopHoverHide,
+    hoverUnlock: settings.desktopHoverUnlock,
     fullscreenHide: settings.desktopFullscreenHide,
     lineGap: settings.desktopLineGap,
     enablePinTop: settings.desktopEnablePinTop,
@@ -4611,6 +4612,17 @@ class _DesktopWindowGroupState extends State<_DesktopWindowGroup>
             value: settings.desktopHoverHide,
             onChanged: (v) =>
                 updateDesktopLyricConfig(() => settings.desktopHoverHide = v),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SettingsTile(
+          description: '悬停解锁',
+          subtitle: '锁定后鼠标停一会显示解锁按钮',
+          action: Switch(
+            value: settings.desktopHoverUnlock,
+            onChanged: (v) => updateDesktopLyricConfig(
+              () => settings.desktopHoverUnlock = v,
+            ),
           ),
         ),
         const SizedBox(height: 16),

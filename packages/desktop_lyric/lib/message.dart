@@ -411,6 +411,7 @@ class DesktopLyricConfigMessage extends Message {
   final bool? useVerticalDisplayMode;
   final bool? showDoubleLine;
   final bool? hoverHide;
+  final bool? hoverUnlock;
   final bool? fullscreenHide;
   final double? lineGap;
   final bool? enablePinTop;
@@ -441,6 +442,7 @@ class DesktopLyricConfigMessage extends Message {
     this.useVerticalDisplayMode,
     this.showDoubleLine,
     this.hoverHide,
+    this.hoverUnlock,
     this.fullscreenHide,
     this.lineGap,
     this.enablePinTop,
@@ -473,6 +475,7 @@ class DesktopLyricConfigMessage extends Message {
       useVerticalDisplayMode: json['useVerticalDisplayMode'] as bool?,
       showDoubleLine: json['showDoubleLine'] as bool?,
       hoverHide: json['hoverHide'] as bool?,
+      hoverUnlock: json['hoverUnlock'] as bool?,
       fullscreenHide: json['fullscreenHide'] as bool?,
       lineGap: (json['lineGap'] as num?)?.toDouble(),
       enablePinTop: json['enablePinTop'] as bool?,
@@ -512,6 +515,7 @@ class DesktopLyricConfigMessage extends Message {
           'useVerticalDisplayMode': useVerticalDisplayMode,
         if (showDoubleLine != null) 'showDoubleLine': showDoubleLine,
         if (hoverHide != null) 'hoverHide': hoverHide,
+        if (hoverUnlock != null) 'hoverUnlock': hoverUnlock,
         if (fullscreenHide != null) 'fullscreenHide': fullscreenHide,
         if (lineGap != null) 'lineGap': lineGap,
         if (enablePinTop != null) 'enablePinTop': enablePinTop,
