@@ -290,6 +290,7 @@ class AppSettings {
   bool enableDetailHeaderCollapseMotion = true;
   bool enableDataTransitionMotion = true;
   bool alwaysShowNowPlayingControls = false;
+  bool alwaysShowNowPlayingTransport = false;
   bool globalHotkeysEnabled = false;
   Map<HotkeyAction, HotkeyBinding> inAppHotkeys = defaultInAppHotkeys();
   Map<HotkeyAction, HotkeyBinding> globalHotkeys = defaultGlobalHotkeys();
@@ -484,6 +485,10 @@ class AppSettings {
     );
     _instance.alwaysShowNowPlayingControls = normalizedBoolSetting(
       settingsMap['AlwaysShowNowPlayingControls'],
+      defaultValue: false,
+    );
+    _instance.alwaysShowNowPlayingTransport = normalizedBoolSetting(
+      settingsMap['AlwaysShowNowPlayingTransport'],
       defaultValue: false,
     );
     _instance.globalHotkeysEnabled = normalizedBoolSetting(
@@ -1131,6 +1136,7 @@ class AppSettings {
     'EnableDetailHeaderCollapseMotion': enableDetailHeaderCollapseMotion,
     'EnableDataTransitionMotion': enableDataTransitionMotion,
     'AlwaysShowNowPlayingControls': alwaysShowNowPlayingControls,
+    'AlwaysShowNowPlayingTransport': alwaysShowNowPlayingTransport,
     ...encodeHotkeySettings(
       globalEnabled: globalHotkeysEnabled,
       inApp: inAppHotkeys,

@@ -3795,6 +3795,42 @@ class _AlwaysShowNowPlayingControlsSwitchState
   }
 }
 
+class _AlwaysShowNowPlayingTransportSwitch extends StatefulWidget {
+  const _AlwaysShowNowPlayingTransportSwitch();
+
+  @override
+  State<_AlwaysShowNowPlayingTransportSwitch> createState() =>
+      _AlwaysShowNowPlayingTransportSwitchState();
+}
+
+class _AlwaysShowNowPlayingTransportSwitchState
+    extends State<_AlwaysShowNowPlayingTransportSwitch> {
+  final settings = AppSettings.instance;
+
+  Future<void> _setEnabled(bool value) async {
+    setState(() => settings.alwaysShowNowPlayingTransport = value);
+    AppSettings.rebuildNotifier.rebuild();
+    final saved = await settings.saveSettings();
+    if (!saved && mounted) {
+      setState(() => settings.alwaysShowNowPlayingTransport = !value);
+      AppSettings.rebuildNotifier.rebuild();
+      showTextOnSnackBar('播放键设置保存失败', variant: ToastVariant.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsTile(
+      description: '播放键常驻',
+      subtitle: settings.alwaysShowNowPlayingTransport ? '播放键保持显示' : '鼠标移上去时显示',
+      action: Switch(
+        value: settings.alwaysShowNowPlayingTransport,
+        onChanged: _setEnabled,
+      ),
+    );
+  }
+}
+
 class _AppearanceProgressGroup extends StatelessWidget {
   const _AppearanceProgressGroup();
 
@@ -3912,6 +3948,8 @@ class _AppearancePlayerGroup extends StatelessWidget {
         _MonetControlsSwitch(),
         SizedBox(height: 16.0),
         _AlwaysShowNowPlayingControlsSwitch(),
+        SizedBox(height: 16.0),
+        _AlwaysShowNowPlayingTransportSwitch(),
       ],
     );
   }

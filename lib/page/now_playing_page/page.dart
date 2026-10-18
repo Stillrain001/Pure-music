@@ -545,7 +545,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         if (_usesCompactNowPlayingLayout(context, screenType)) {
           return _NowPlayingSmallPage(cursorHidden: _cursorHiddenNotifier);
         }
-        return const _NowPlayingLargePage();
+        return _NowPlayingLargePage(cursorHidden: _cursorHiddenNotifier);
       },
     );
   }

@@ -1,7 +1,9 @@
 part of 'page.dart';
 
 class _NowPlayingLargePage extends StatelessWidget {
-  const _NowPlayingLargePage();
+  const _NowPlayingLargePage({required this.cursorHidden});
+
+  final ValueListenable<bool> cursorHidden;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +104,10 @@ class _NowPlayingLargePage extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: _leftButtons(context, controlColor, useMonet),
+          child: _CursorIdleVisibility(
+            cursorHidden: cursorHidden,
+            child: _leftButtons(context, controlColor, useMonet),
+          ),
         ),
         _AutoHidingControlBar(
           child: ListenableBuilder(
@@ -111,7 +116,13 @@ class _NowPlayingLargePage extends StatelessWidget {
                 _transport(playbackService, controlColor, disabledColor),
           ),
         ),
-        Align(alignment: Alignment.centerRight, child: _rightTools()),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _CursorIdleVisibility(
+            cursorHidden: cursorHidden,
+            child: _rightTools(),
+          ),
+        ),
       ],
     );
   }
@@ -250,6 +261,38 @@ class _NowPlayingLargePage extends StatelessWidget {
   }
 }
 
+/// 左、右两组控件共用：跟顶部一样，光标空闲后隐藏，鼠标一动就出；「播放控件常驻」打开时保持显示。
+class _CursorIdleVisibility extends StatelessWidget {
+  const _CursorIdleVisibility({
+    required this.cursorHidden,
+    required this.child,
+  });
+
+  final ValueListenable<bool> cursorHidden;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: cursorHidden,
+      builder: (context, hidden, _) => ListenableBuilder(
+        listenable: AppSettings.rebuildNotifier,
+        builder: (context, _) {
+          final visible =
+              AppSettings.instance.alwaysShowNowPlayingControls || !hidden;
+          return AnimatedOpacity(
+            duration: MotionDuration.xFast,
+            curve: MotionCurve.standard,
+            opacity: visible ? 1.0 : 0.0,
+            child: IgnorePointer(ignoring: !visible, child: child),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 中间播放键：默认悬停才现，「播放键常驻」打开时保持显示。
 class _AutoHidingControlBar extends StatefulWidget {
   final Widget child;
   const _AutoHidingControlBar({required this.child});
@@ -279,12 +322,13 @@ class _AutoHidingControlBarState extends State<_AutoHidingControlBar> {
             duration: MotionDuration.base,
             curve: MotionCurve.standard,
             opacity:
-                AppSettings.instance.alwaysShowNowPlayingControls || _isHovering
+                AppSettings.instance.alwaysShowNowPlayingTransport ||
+                    _isHovering
                 ? 1.0
                 : 0.0,
             child: IgnorePointer(
               ignoring:
-                  !AppSettings.instance.alwaysShowNowPlayingControls &&
+                  !AppSettings.instance.alwaysShowNowPlayingTransport &&
                   !_isHovering,
               child: widget.child,
             ),
