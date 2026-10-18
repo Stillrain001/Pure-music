@@ -39,6 +39,7 @@ import 'package:pure_music/page/now_playing_page/component/equalizer_dialog.dart
 import 'package:pure_music/page/now_playing_page/component/lyric_source_view.dart';
 import 'package:pure_music/page/now_playing_page/component/sleep_timer_dialog.dart';
 import 'package:pure_music/page/now_playing_page/component/pitch_control.dart';
+import 'package:pure_music/page/now_playing_page/component/player_chrome_foreground.dart';
 import 'package:pure_music/page/now_playing_page/component/vertical_lyric_view.dart';
 import 'package:pure_music/page/now_playing_page/component/now_playing_background.dart';
 import 'package:pure_music/page/now_playing_page/now_playing_visibility.dart';
@@ -700,7 +701,6 @@ class _NowPlayingMoreActionState extends State<_NowPlayingMoreAction> {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
     final playbackService = context.watch<PlaybackService>();
     final nowPlaying = playbackService.nowPlaying;
-    final scheme = Theme.of(context).colorScheme;
     final menuStyle = appMenuStyle;
     final menuItemStyle = appMenuItemStyle;
 
@@ -709,7 +709,7 @@ class _NowPlayingMoreActionState extends State<_NowPlayingMoreAction> {
         tooltip: '更多',
         onPressed: null,
         icon: const Icon(Symbols.more_vert),
-        color: playerThemeForeground(scheme, enabled: useMonet),
+        color: playerChromeForeground(context, enabled: useMonet),
       );
     }
 
@@ -728,7 +728,7 @@ class _NowPlayingMoreActionState extends State<_NowPlayingMoreAction> {
             }
           },
           icon: const Icon(Symbols.more_vert),
-          color: playerThemeForeground(scheme, enabled: useMonet),
+          color: playerChromeForeground(context, enabled: useMonet),
         ),
       ),
     );
@@ -963,8 +963,7 @@ class _NowPlayingPlaybackModeSwitchState
   @override
   Widget build(BuildContext context) {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
-    final scheme = Theme.of(context).colorScheme;
-    final color = playerThemeForeground(scheme, enabled: useMonet);
+    final color = playerChromeForeground(context, enabled: useMonet);
     final disabledColor = color.withValues(alpha: 0.38);
     final playbackService = PlayService.instance.playbackService;
 
@@ -1026,14 +1025,13 @@ class _ExclusiveModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
-    final scheme = Theme.of(context).colorScheme;
     //
     return ValueListenableBuilder(
       valueListenable: PlayService.instance.playbackService.wasapiExclusive,
       builder: (context, exclusive, _) {
         // 激活态也只跟「主题色控件」：关=浅黑/深白，开才用主题色
-        final foregroundColor = playerThemeForeground(
-          scheme,
+        final foregroundColor = playerChromeForeground(
+          context,
           enabled: useMonet,
         );
 
@@ -1085,7 +1083,6 @@ class _DesktopLyricSwitchState extends State<_DesktopLyricSwitch> {
   @override
   Widget build(BuildContext context) {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
-    final scheme = Theme.of(context).colorScheme;
     //
     return ListenableBuilder(
       listenable: PlayService.instance.desktopLyricService,
@@ -1095,21 +1092,17 @@ class _DesktopLyricSwitchState extends State<_DesktopLyricSwitch> {
         final isKilling = desktopLyricService.isKilling;
 
         if (_isStarting && !isRunning) {
-          return _busyDesktopLyricButton(scheme, useMonet, '正在打开桌面歌词...');
+          return _busyDesktopLyricButton(useMonet, '正在打开桌面歌词...');
         }
         if (isKilling) {
-          return _busyDesktopLyricButton(scheme, useMonet, '正在关闭桌面歌词...');
+          return _busyDesktopLyricButton(useMonet, '正在关闭桌面歌词...');
         }
-        return _desktopLyricButton(scheme, useMonet);
+        return _desktopLyricButton(useMonet);
       },
     );
   }
 
-  Widget _busyDesktopLyricButton(
-    ColorScheme scheme,
-    bool useMonet,
-    String tooltip,
-  ) {
+  Widget _busyDesktopLyricButton(bool useMonet, String tooltip) {
     return IconButton(
       tooltip: tooltip,
       onPressed: null,
@@ -1118,11 +1111,11 @@ class _DesktopLyricSwitchState extends State<_DesktopLyricSwitch> {
         height: 20,
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
-      color: playerThemeForeground(scheme, enabled: useMonet),
+      color: playerChromeForeground(context, enabled: useMonet),
     );
   }
 
-  Widget _desktopLyricButton(ColorScheme scheme, bool useMonet) {
+  Widget _desktopLyricButton(bool useMonet) {
     final desktopLyricService = PlayService.instance.desktopLyricService;
     final isRunning = desktopLyricService.isRunning;
     return IconButton(
@@ -1140,7 +1133,7 @@ class _DesktopLyricSwitchState extends State<_DesktopLyricSwitch> {
         desktopLyricService.isLocked ? Symbols.lock : Symbols.toast,
         fill: isRunning ? 1 : 0,
       ),
-      color: playerThemeForeground(scheme, enabled: useMonet),
+      color: playerChromeForeground(context, enabled: useMonet),
     );
   }
 }
@@ -1259,7 +1252,7 @@ class _NowPlayingVolDspSliderState extends State<_NowPlayingVolDspSlider> {
             }
           },
           icon: const Icon(Symbols.volume_up),
-          color: playerThemeForeground(scheme, enabled: useMonet),
+          color: playerChromeForeground(context, enabled: useMonet),
         );
       },
     );
@@ -2064,7 +2057,7 @@ class _NowPlayingSliderState extends State<_NowPlayingSlider>
     final useWavyBar = AppSettings.instance.wavyBarEnabledModes.contains(
       widget.mode,
     );
-    final barColor = playerThemeForeground(scheme, enabled: useMonetBar);
+    final barColor = playerChromeForeground(context, enabled: useMonetBar);
     final barGlow = useMonetBar
         ? scheme.primaryContainer
         : playerThemeForeground(scheme, enabled: false).withValues(alpha: 0.3);

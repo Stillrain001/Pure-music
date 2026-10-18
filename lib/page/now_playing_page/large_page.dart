@@ -8,8 +8,7 @@ class _NowPlayingLargePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
-    final scheme = Theme.of(context).colorScheme;
-    final controlColor = playerThemeForeground(scheme, enabled: useMonet);
+    final controlColor = playerChromeForeground(context, enabled: useMonet);
     return Column(
       children: [
         Expanded(child: _stage()),
@@ -169,10 +168,7 @@ class _NowPlayingLargePage extends StatelessWidget {
             );
           },
           icon: const Icon(Symbols.graphic_eq),
-          color: playerThemeForeground(
-            Theme.of(context).colorScheme,
-            enabled: useMonet,
-          ),
+          color: playerChromeForeground(context, enabled: useMonet),
         ),
       ],
     );
@@ -365,8 +361,7 @@ class _NowPlayingLargeViewSwitchState
   @override
   Widget build(BuildContext context) {
     final useMonet = AppSettings.instance.useMaterialYouForControls;
-    final scheme = Theme.of(context).colorScheme;
-    final color = playerThemeForeground(scheme, enabled: useMonet);
+    final color = playerChromeForeground(context, enabled: useMonet);
     final disabledColor = color.withValues(alpha: 0.38);
 
     return ValueListenableBuilder(

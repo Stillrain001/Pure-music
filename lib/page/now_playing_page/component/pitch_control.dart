@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/theme.dart';
+import 'package:pure_music/page/now_playing_page/component/player_chrome_foreground.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -17,7 +18,6 @@ class NowPlayingPitchControl extends StatefulWidget {
 class _NowPlayingPitchControlState extends State<NowPlayingPitchControl> {
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final useMonet = AppSettings.instance.useMaterialYouForControls;
     final panelWidth =
         (MediaQuery.sizeOf(context).width - 64).clamp(240.0, 300.0).toDouble();
@@ -39,7 +39,7 @@ class _NowPlayingPitchControlState extends State<NowPlayingPitchControl> {
           },
           tooltip: '音调',
           icon: const Icon(Symbols.music_note),
-          color: playerThemeForeground(scheme, enabled: useMonet),
+          color: playerChromeForeground(context, enabled: useMonet),
         );
       },
       menuChildren: [

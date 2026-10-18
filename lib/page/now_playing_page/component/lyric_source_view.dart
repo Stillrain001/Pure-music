@@ -8,6 +8,8 @@ import 'package:pure_music/lyric/lyric.dart';
 import 'package:pure_music/lyric/lyric_source.dart';
 import 'package:pure_music/lyric/lyric_loader.dart';
 import 'package:pure_music/core/matcher.dart';
+import 'package:pure_music/core/settings.dart';
+import 'package:pure_music/page/now_playing_page/component/player_chrome_foreground.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/services/online_lyric/api/net_lyric_api.dart'
     as net_api;
@@ -881,7 +883,6 @@ class _SetLyricSourceBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final icon = switch (sourceType) {
       null => Symbols.lyrics,
       LyricSourceType.local => Symbols.lyrics,
@@ -903,7 +904,10 @@ class _SetLyricSourceBtn extends StatelessWidget {
               }
             },
       icon: Icon(icon, fill: sourceType == LyricSourceType.local ? 1.0 : 0.0),
-      color: scheme.onSecondaryContainer,
+      color: playerChromeForeground(
+        context,
+        enabled: AppSettings.instance.useMaterialYouForControls,
+      ),
     );
   }
 }

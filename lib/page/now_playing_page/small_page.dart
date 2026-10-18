@@ -207,9 +207,8 @@ class _NowPlayingSmallControlZoneState
   }
 
   Widget _secondaryChrome() {
-    final scheme = Theme.of(context).colorScheme;
-    final controlColor = playerThemeForeground(
-      scheme,
+    final controlColor = playerChromeForeground(
+      context,
       enabled: AppSettings.instance.useMaterialYouForControls,
     );
     return ListenableBuilder(
@@ -264,10 +263,9 @@ class _NowPlayingSmallMainControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final playbackService = PlayService.instance.playbackService;
-    final controlColor = playerThemeForeground(
-      scheme,
+    final controlColor = playerChromeForeground(
+      context,
       enabled: AppSettings.instance.useMaterialYouForControls,
     );
     return ListenableBuilder(

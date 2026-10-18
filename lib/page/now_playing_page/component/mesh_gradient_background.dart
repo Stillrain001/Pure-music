@@ -180,6 +180,50 @@ List<Color> _meshShaderColors(List<Color> colors) {
   return colors.length == _kShaderColorCount ? colors : const [];
 }
 
+/// 播放页下半区前景色安全档位：和背景主色（调色板第一颗，按主题明暗调整后）
+/// 对比不足时，沿原色相调明度到能读；极端情况才退回黑白。调色板为空原样返回。
+Color resolvePlayerSafeForeground({
+  required Color foreground,
+  required List<Color> palette,
+  required Brightness brightness,
+}) {
+  if (palette.isEmpty) return foreground;
+  const target = 4.5;
+  final adjusted = _adjustMeshColors([palette.first], brightness).first;
+  final scrim = brightness == Brightness.dark
+      ? _kDarkMeshScrim
+      : _kLightMeshScrim;
+  final backdrop = Color.alphaBlend(scrim, adjusted);
+  if (_contrastRatio(foreground, backdrop) >= target) return foreground;
+  final hsl = HSLColor.fromColor(foreground);
+  for (var step = 1; step <= 16; step++) {
+    final delta = step / 16;
+    final lighter = hsl
+        .withLightness((hsl.lightness + delta).clamp(0.0, 1.0))
+        .toColor();
+    final darker = hsl
+        .withLightness((hsl.lightness - delta).clamp(0.0, 1.0))
+        .toColor();
+    final lighterRatio = _contrastRatio(lighter, backdrop);
+    final darkerRatio = _contrastRatio(darker, backdrop);
+    if (lighterRatio >= target || darkerRatio >= target) {
+      return lighterRatio >= darkerRatio ? lighter : darker;
+    }
+  }
+  return _contrastRatio(Colors.white, backdrop) >=
+          _contrastRatio(Colors.black, backdrop)
+      ? Colors.white
+      : Colors.black;
+}
+
+double _contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 class MeshGradientBackground extends StatelessWidget {
   final NowPlayingBackgroundInputs inputs;
   final Color fallbackColor;
