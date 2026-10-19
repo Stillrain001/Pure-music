@@ -8,6 +8,7 @@ import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/audio_echo_log_recorder.dart';
+import 'package:pure_music/play_service/audio_tag_write_scheduler.dart';
 import 'package:pure_music/play_service/equalizer_service.dart';
 import 'package:pure_music/play_service/playback_listen_tracker.dart';
 import 'package:pure_music/play_service/playback_session_store.dart';
@@ -30,6 +31,12 @@ import 'package:pure_music/services/lastfm/lastfm_models.dart';
 import 'package:pure_music/services/lastfm/lastfm_service.dart';
 import 'package:pure_music/play_service/sleep_timer.dart';
 import 'package:flutter/foundation.dart';
+
+final class _NowPlayingNotifier extends ValueNotifier<Audio?> {
+  _NowPlayingNotifier() : super(null);
+
+  void refresh() => notifyListeners();
+}
 
 final class _PendingGaplessTransition {
   const _PendingGaplessTransition({
@@ -232,6 +239,8 @@ class PlaybackService extends ChangeNotifier {
   PlaybackService(this.playService) {
     unawaited(LastFmService.instance.ensureLoaded());
     _player.setMidiSoundfontPath(AppSettings.instance.midiSoundfontPath);
+    audioTagWriteScheduler.bindPathCheck(_player.isAudioFileOpen);
+    _player.onAudioFilesChanged = audioTagWriteScheduler.onAudioFilesChanged;
     _bindExclusiveMode();
     _bindPlayerState();
     _bindSmtcControls();
@@ -541,7 +550,6 @@ class PlaybackService extends ChangeNotifier {
     );
   }
 
-
   void _maybeSkipLeadingSilence(Audio audio, {required String reason}) {
     if (!_pref.skipLeadingSilence || reason == 'restore') return;
     final token = ++_skipLeadingSilenceToken;
@@ -664,7 +672,7 @@ class PlaybackService extends ChangeNotifier {
     return applied;
   }
 
-  late final _nowPlaying = ValueNotifier<Audio?>(null);
+  late final _nowPlaying = _NowPlayingNotifier();
   ValueNotifier<Audio?> get nowPlayingNotifier => _nowPlaying;
   Audio? get nowPlaying => _nowPlaying.value;
 
@@ -922,9 +930,8 @@ class PlaybackService extends ChangeNotifier {
     return switch (playMode.value) {
       PlayMode.forward || PlayMode.loop => (currentIndex + 1) % items.length,
       PlayMode.singleLoop => currentIndex,
-      PlayMode.listOnce => currentIndex + 1 < items.length
-          ? currentIndex + 1
-          : null,
+      PlayMode.listOnce =>
+        currentIndex + 1 < items.length ? currentIndex + 1 : null,
     };
   }
 
@@ -1343,6 +1350,7 @@ class PlaybackService extends ChangeNotifier {
     if (_closed) return;
     final audio = nowPlaying;
     if (audio == null) return;
+    _nowPlaying.refresh();
     unawaited(
       _smtc.updateDisplay(
         title: audio.title,
@@ -2162,10 +2170,16 @@ class PlaybackService extends ChangeNotifier {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await _closeSmtc(smtcCancels);
     _disposePlaybackNotifiers();
+    _player.onAudioFilesChanged = null;
     try {
       _player.free();
     } catch (e) {
       log.playback.warn('legacy', '_player.free error: $e');
+    }
+    try {
+      await audioTagWriteScheduler.flushAll();
+    } catch (e) {
+      log.playback.warn('legacy', 'flush deferred tag writes error: $e');
     }
   }
 

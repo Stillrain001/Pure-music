@@ -341,7 +341,11 @@ Widget _lyricBarLabel(String label, Color color) {
       fit: BoxFit.scaleDown,
       child: Text(
         label,
-        style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16),
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: color,
+          fontSize: 16,
+        ),
       ),
     ),
   );
@@ -578,11 +582,11 @@ class _SaveOffsetToTagButtonState extends State<_SaveOffsetToTagButton> {
     setState(() => _busy = true);
     final lyricService = PlayService.instance.lyricService;
     final wroteExternal = lyricService.activeLocalIsExternal == true;
-    final error = await lyricService.saveCurrentOffsetToTag();
+    final result = await lyricService.saveCurrentOffsetToTag();
     if (!mounted) return;
+    final error = result.error;
     final keptInPlayer =
-        error != null &&
-        (error.contains('仍记在播放器里') || error.contains('不用写入'));
+        error != null && (error.contains('仍记在播放器里') || error.contains('不用写入'));
     setState(() {
       _busy = false;
       _written = error == null;
@@ -594,7 +598,13 @@ class _SaveOffsetToTagButtonState extends State<_SaveOffsetToTagButton> {
       );
       return;
     }
-    showTextOnSnackBar(wroteExternal ? '歌词偏移已写入歌词文件' : '歌词偏移已写入标签');
+    showTextOnSnackBar(
+      result.deferred
+          ? '歌词偏移将在播放结束后写入标签'
+          : wroteExternal
+          ? '歌词偏移已写入歌词文件'
+          : '歌词偏移已写入标签',
+    );
   }
 
   @override

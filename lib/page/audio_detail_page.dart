@@ -21,6 +21,7 @@ import 'package:pure_music/native/rust/api/tag_reader.dart' as rust_tag_reader;
 import 'package:pure_music/native/rust/api/utils.dart';
 import 'package:pure_music/page/audio_detail_cover.dart';
 import 'package:pure_music/page/audio_detail_metadata_cache.dart';
+import 'package:pure_music/play_service/audio_tag_write_scheduler.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/taskbar_thumbnail_service.dart';
 import 'package:pure_music/services/online_lyric/api/net_lyric_api.dart'
@@ -300,20 +301,40 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     setState(() => _isSaving = true);
     var coverWritten = false;
     try {
-      if (_pendingCoverBytes != null) {
-        await rust_tag_reader.writeAudioCover(
-          path: audio.path,
-          bytes: _pendingCoverBytes!,
-        );
-        audio.evictCoverCache();
-        _coverRevision++;
-        coverWritten = true;
-      }
+      final coverBytes = _pendingCoverBytes;
       final payload = _controllers.buildPayload();
-      await rust_tag_reader.writeAudioTags(
+      final timing = await audioTagWriteScheduler.submit(
         path: audio.path,
-        payload: payload,
-        onlyChanged: true,
+        write: () async {
+          if (coverBytes != null) {
+            await rust_tag_reader.writeAudioCover(
+              path: audio.path,
+              bytes: coverBytes,
+            );
+            coverWritten = true;
+          }
+          await rust_tag_reader.writeAudioTags(
+            path: audio.path,
+            payload: payload,
+            onlyChanged: true,
+          );
+        },
+        onWritten: () {
+          if (coverBytes != null) {
+            audio.evictCoverCache();
+            if (mounted) setState(() => _coverRevision++);
+          }
+          _refreshSystemNowPlaying();
+        },
+        onError: (error, trace) {
+          log.library.error(
+            'legacy',
+            '保存音频标签失败',
+            error: error,
+            stackTrace: trace,
+          );
+          showTextOnSnackBar('保存标签失败，请查看日志');
+        },
       );
       _audioExtraCache.evict(audio);
       AudioLibrary.instance.updateAudioTags(
@@ -326,7 +347,9 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
       );
       _refreshSystemNowPlaying();
       if (mounted) {
-        showTextOnSnackBar('标签已保存');
+        showTextOnSnackBar(
+          timing == AudioTagWriteTiming.afterPlayback ? '将在播放结束后写入标签' : '标签已保存',
+        );
         _cancelEdit();
       }
     } catch (e, trace) {
@@ -410,7 +433,6 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
       ),
     );
   }
-
 
   Widget _infoSections(ColorScheme scheme, Widget placeholder) {
     return Column(
@@ -849,7 +871,6 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
       ],
     );
   }
-
 
   Widget _saveIcon() {
     if (!_isSaving) return const Icon(Symbols.check, size: 16);
@@ -1420,14 +1441,31 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
-      await rust_tag_reader.writeLyricToPath(
+      final timing = await audioTagWriteScheduler.submit(
         path: widget.audio.path,
-        lyric: _ctrl.text,
+        write: () => rust_tag_reader.writeLyricToPath(
+          path: widget.audio.path,
+          lyric: _ctrl.text,
+        ),
+        onWritten: () => _refreshNowPlayingLyricIfCurrent(widget.audio.path),
+        onError: (error, trace) {
+          log.library.error(
+            'legacy',
+            '写入歌词标签失败',
+            error: error,
+            stackTrace: trace,
+          );
+          showTextOnSnackBar('写入标签失败，请查看日志', variant: ToastVariant.error);
+        },
       );
-      _refreshNowPlayingLyricIfCurrent(widget.audio.path);
       if (mounted) {
         Navigator.pop(context, true);
-        showTextOnSnackBar('歌词已写入标签', variant: ToastVariant.success);
+        showTextOnSnackBar(
+          timing == AudioTagWriteTiming.afterPlayback
+              ? '将在播放结束后写入标签'
+              : '歌词已写入标签',
+          variant: ToastVariant.success,
+        );
       }
     } catch (e, trace) {
       log.library.error('legacy', '写入歌词标签失败', error: e, stackTrace: trace);
@@ -1449,7 +1487,10 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
     if (!mounted || result == null) return;
     if (result.written) {
       Navigator.pop(context, true);
-      showTextOnSnackBar('歌词已写入标签', variant: ToastVariant.success);
+      showTextOnSnackBar(
+        result.deferred ? '将在播放结束后写入标签' : '歌词已写入标签',
+        variant: ToastVariant.success,
+      );
     } else if (result.text.isNotEmpty) {
       setState(() => _ctrl.text = result.text);
     }
@@ -1504,7 +1545,6 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
         ),
         const SizedBox(height: 8),
         Expanded(child: _editorField(scheme)),
-
       ],
     );
   }
@@ -1523,7 +1563,6 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
       ),
     );
   }
-
 }
 
 enum _LyricNetSource { qq, ne, kugou }
@@ -1648,13 +1687,32 @@ class _FetchLyricFromNetDialogState extends State<_FetchLyricFromNetDialog> {
         return;
       }
       if (writeDirectly) {
-        await rust_tag_reader.writeLyricToPath(
+        final timing = await audioTagWriteScheduler.submit(
           path: widget.audio.path,
-          lyric: text,
+          write: () => rust_tag_reader.writeLyricToPath(
+            path: widget.audio.path,
+            lyric: text,
+          ),
+          onWritten: () => _refreshNowPlayingLyricIfCurrent(widget.audio.path),
+          onError: (error, trace) {
+            log.library.error(
+              'legacy',
+              '获取或写入歌词失败',
+              error: error,
+              stackTrace: trace,
+            );
+            showTextOnSnackBar('操作失败，请查看日志', variant: ToastVariant.error);
+          },
         );
-        _refreshNowPlayingLyricIfCurrent(widget.audio.path);
         if (!mounted) return;
-        Navigator.pop(context, _NetFetchResult(text, written: true));
+        Navigator.pop(
+          context,
+          _NetFetchResult(
+            text,
+            written: true,
+            deferred: timing == AudioTagWriteTiming.afterPlayback,
+          ),
+        );
       } else {
         Navigator.pop(context, _NetFetchResult(text));
       }
@@ -1885,10 +1943,15 @@ void _refreshNowPlayingLyricIfCurrent(String audioPath) {
 }
 
 class _NetFetchResult {
-  const _NetFetchResult(this.text, {this.written = false});
+  const _NetFetchResult(
+    this.text, {
+    this.written = false,
+    this.deferred = false,
+  });
 
   final String text;
   final bool written;
+  final bool deferred;
 }
 
 class _LyricSearchItem {
@@ -2107,7 +2170,6 @@ class _CoverSearchDialogState extends State<_CoverSearchDialog> {
     );
   }
 
-
   Widget _downloadProgress() {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -2193,14 +2255,12 @@ class _CoverSearchDialogState extends State<_CoverSearchDialog> {
     );
   }
 
-
   Widget _onCoverFrame(String picUrl, int? frame, Widget child) {
     if (frame != null && !_coverImageSizeCache.containsKey(picUrl)) {
       _loadImageSize(picUrl);
     }
     return child;
   }
-
 
   Widget _coverNetworkImage(ColorScheme scheme, _CoverSearchResult item) {
     return Image.network(

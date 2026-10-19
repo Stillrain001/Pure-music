@@ -243,6 +243,32 @@ class BassPlayer {
   /// 独占模式状态变化回调
   void Function(bool)? onExclusiveModeChanged;
 
+  /// 打开中的音频文件有变化时通知。用来把标签写入推迟到文件松开之后。
+  void Function()? onAudioFilesChanged;
+  String? _lingeringPath;
+  String? _smartOutgoingPath;
+
+  bool isAudioFileOpen(String path) {
+    final key = path.toLowerCase();
+    bool same(String? candidate) =>
+        candidate != null && candidate.toLowerCase() == key;
+    if (_fstream != null && same(_fPath)) return true;
+    if (_queuedStream != null && same(_queuedPath)) return true;
+    if (_smartPreparation != null && same(_smartPreparation!.path)) {
+      return true;
+    }
+    if ((_fadeOutHandle != null || _transitionOldStream != null) &&
+        same(_lingeringPath)) {
+      return true;
+    }
+    if (_smartOutgoingStream != null && same(_smartOutgoingPath)) return true;
+    return false;
+  }
+
+  void _publishAudioFiles() {
+    onAudioFilesChanged?.call();
+  }
+
   /// 同步阻塞 Sleep 函数（Windows kernel32.dll）
   void Function(int milliseconds)? _windowsSleep;
 
@@ -330,7 +356,6 @@ class BassPlayer {
     setMidiSoundfontPath(saved);
   }
 
-
   int get sourceGeneration => _mixerGeneration;
 
   bool get hasGaplessMixer => _mixerStream != null;
@@ -342,13 +367,16 @@ class BassPlayer {
     final wasapiStarted = _bassWasapi.BASS_WASAPI_IsStarted() == bass.TRUE;
     final eqCount =
         (_bfxEqHandle != 0 ? 1 : 0) + _eqHandles.where((e) => e != 0).length;
-    log.bass.debug('legacy', '[bass] $tag | exclusive=$wasapiExclusive streamExclusive=$_streamWasapiExclusive '
-      'wasapiStarted=$wasapiStarted handle=$_fstream mixer=$_mixerStream queued=$_queuedStream '
-      'smart=${_smartPreparation?.transitionId ?? _activeSmartTransitionId} '
-      'eq=$eqCount eqFlat=${isEqNeutral ? 1 : 0} '
-      'dsp=$_dspStateLine volume=${_baseOutputVolume.toStringAsFixed(3)} '
-      'rate=$_rate pitch=$_pitch sampleRate=${_streamSampleRate.round()}Hz '
-      'wasapi=$_wasapiOutputInfo',);
+    log.bass.debug(
+      'legacy',
+      '[bass] $tag | exclusive=$wasapiExclusive streamExclusive=$_streamWasapiExclusive '
+          'wasapiStarted=$wasapiStarted handle=$_fstream mixer=$_mixerStream queued=$_queuedStream '
+          'smart=${_smartPreparation?.transitionId ?? _activeSmartTransitionId} '
+          'eq=$eqCount eqFlat=${isEqNeutral ? 1 : 0} '
+          'dsp=$_dspStateLine volume=${_baseOutputVolume.toStringAsFixed(3)} '
+          'rate=$_rate pitch=$_pitch sampleRate=${_streamSampleRate.round()}Hz '
+          'wasapi=$_wasapiOutputInfo',
+    );
   }
 
   String get debugStateLine {
@@ -808,7 +836,10 @@ class BassPlayer {
 
     if (wasapiExclusive) {
       if (!isEqNeutral) {
-        log.bass.warn('legacy', '[bass] EQ enabled in exclusive mode, keep shared mode');
+        log.bass.warn(
+          'legacy',
+          '[bass] EQ enabled in exclusive mode, keep shared mode',
+        );
         useExclusiveMode(false);
       }
       return;
@@ -976,7 +1007,10 @@ class BassPlayer {
         }
         return;
       }
-      log.bass.warn('legacy', 'Failed to set BFX EQ: BASS Error ${_bass.BASS_ErrorGetCode()}');
+      log.bass.warn(
+        'legacy',
+        'Failed to set BFX EQ: BASS Error ${_bass.BASS_ErrorGetCode()}',
+      );
       _bfxEqHandle = 0;
     }
 
@@ -1029,7 +1063,10 @@ class BassPlayer {
 
         if (result == 0) {
           final err = _bass.BASS_ErrorGetCode();
-          log.bass.warn('legacy', 'Failed to set BFX EQ parameters for band $band: Error $err',);
+          log.bass.warn(
+            'legacy',
+            'Failed to set BFX EQ parameters for band $band: Error $err',
+          );
         }
       } catch (e) {
         log.bass.error('legacy', 'Error updating BFX EQ band $band: $e');
@@ -1061,7 +1098,10 @@ class BassPlayer {
 
       if (result == 0) {
         final err = _bass.BASS_ErrorGetCode();
-        log.bass.warn('legacy', 'Failed to set EQ parameters for band $band: Error $err');
+        log.bass.warn(
+          'legacy',
+          'Failed to set EQ parameters for band $band: Error $err',
+        );
       }
     } catch (e) {
       log.bass.error('legacy', 'Error updating EQ band $band: $e');
@@ -1186,8 +1226,11 @@ class BassPlayer {
     if (existing != null && existing != 0) return existing;
     final handle = _bass.BASS_ChannelSetFX(channel, type, priority);
     if (handle == 0) {
-      log.bass.warn('legacy', '[bass] failed to create DSP effect: type=$type '
-        'priority=$priority error=${_bass.BASS_ErrorGetCode()}',);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to create DSP effect: type=$type '
+            'priority=$priority error=${_bass.BASS_ErrorGetCode()}',
+      );
       return null;
     }
     _dspFxHandles[priority] = handle;
@@ -1226,12 +1269,19 @@ class BassPlayer {
         ..fS = 1
         ..lChannel = bass.BASS_BFX_CHANALL;
       if (_bass.BASS_FXSetParameters(handle, params.cast()) == bass.FALSE) {
-        log.bass.warn('legacy', '[bass] failed to configure DSP filter: type=$type error=${_bass.BASS_ErrorGetCode()}',);
+        log.bass.warn(
+          'legacy',
+          '[bass] failed to configure DSP filter: type=$type error=${_bass.BASS_ErrorGetCode()}',
+        );
         _discardDspEffect(channel, priority, handle);
       }
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] failed to configure DSP filter: type=$type', error: error,
-        stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to configure DSP filter: type=$type',
+        error: error,
+        stackTrace: trace,
+      );
       _discardDspEffect(channel, priority, handle);
     } finally {
       calloc.free(params);
@@ -1261,8 +1311,12 @@ class BassPlayer {
         _discardDspEffect(channel, priority, handle);
       }
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] failed to configure distortion', error: error,
-        stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to configure distortion',
+        error: error,
+        stackTrace: trace,
+      );
       _discardDspEffect(channel, priority, handle);
     } finally {
       calloc.free(params);
@@ -1286,8 +1340,12 @@ class BassPlayer {
         _discardDspEffect(channel, priority, handle);
       }
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] failed to configure reverb', error: error,
-        stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to configure reverb',
+        error: error,
+        stackTrace: trace,
+      );
       _discardDspEffect(channel, priority, handle);
     } finally {
       calloc.free(params);
@@ -1316,8 +1374,12 @@ class BassPlayer {
         _discardDspEffect(channel, priority, handle);
       }
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] failed to configure compressor', error: error,
-        stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to configure compressor',
+        error: error,
+        stackTrace: trace,
+      );
       _discardDspEffect(channel, priority, handle);
     } finally {
       calloc.free(params);
@@ -1345,8 +1407,12 @@ class BassPlayer {
         _discardDspEffect(channel, priority, handle);
       }
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] failed to configure limiter', error: error,
-        stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] failed to configure limiter',
+        error: error,
+        stackTrace: trace,
+      );
       _discardDspEffect(channel, priority, handle);
     } finally {
       calloc.free(params);
@@ -1547,7 +1613,10 @@ class BassPlayer {
         malloc.free(bassDir);
 
         if (!dllDirSet) {
-          log.bass.warn('legacy', '[bass] SetDllDirectoryW failed, falling back to PATH');
+          log.bass.warn(
+            'legacy',
+            '[bass] SetDllDirectoryW failed, falling back to PATH',
+          );
         }
       } catch (e) {
         log.bass.warn('legacy', '[bass] SetDllDirectoryW exception: $e');
@@ -1571,7 +1640,10 @@ class BassPlayer {
             setEnv(nameP, valueP);
             malloc.free(nameP);
             malloc.free(valueP);
-            log.bass.debug('legacy', '[bass] Added BASS dir to PATH as fallback');
+            log.bass.debug(
+              'legacy',
+              '[bass] Added BASS dir to PATH as fallback',
+            );
           }
         } catch (e) {
           log.bass.warn('legacy', '[bass] Failed to update PATH: $e');
@@ -1584,7 +1656,10 @@ class BassPlayer {
     try {
       bassLib = ffi.DynamicLibrary.open(path.join(_bassDir, 'bass.dll'));
     } catch (e) {
-      log.bass.error('legacy', '[bass] FATAL: Cannot load bass.dll from $_bassDir: $e');
+      log.bass.error(
+        'legacy',
+        '[bass] FATAL: Cannot load bass.dll from $_bassDir: $e',
+      );
       rethrow;
     }
     _bassLib = bassLib;
@@ -1636,7 +1711,10 @@ class BassPlayer {
         final hplugin = _bass.BASS_PluginLoad(pluginPathP, bass.BASS_UNICODE);
         if (hplugin == 0) {
           final errCode = _bass.BASS_ErrorGetCode();
-          log.bass.warn('legacy', '[bass] Plugin load failed: $pluginFullPath (error $errCode)',);
+          log.bass.warn(
+            'legacy',
+            '[bass] Plugin load failed: $pluginFullPath (error $errCode)',
+          );
         } else {
           log.bass.debug('legacy', '[bass] Plugin loaded: $name');
         }
@@ -1666,12 +1744,18 @@ class BassPlayer {
       final version = bassFx.BASS_FX_GetVersion();
       _bassFxLib = bassFxLib;
       _bassFx = bassFx;
-      log.bass.debug('legacy', 'BASS_FX loaded (version: ${version.toRadixString(16)})');
+      log.bass.debug(
+        'legacy',
+        'BASS_FX loaded (version: ${version.toRadixString(16)})',
+      );
     } catch (e) {
       bassFxLib?.close();
       _bassFxLib = null;
       _bassFx = null;
-      log.bass.warn('legacy', 'BASS_FX not available: $e; tempo/pitch control disabled');
+      log.bass.warn(
+        'legacy',
+        'BASS_FX not available: $e; tempo/pitch control disabled',
+      );
     }
   }
 
@@ -1699,7 +1783,10 @@ class BassPlayer {
         _onAutoTransitionPos,
       )..keepIsolateAlive = false;
       posSyncCallback = posCallback;
-      log.bass.debug('legacy', 'BASSmix loaded (version: ${version.toRadixString(16)})');
+      log.bass.debug(
+        'legacy',
+        'BASSmix loaded (version: ${version.toRadixString(16)})',
+      );
       _bassMixLib = mixLib;
       _bassMix = mix;
       _bassSync = sync;
@@ -1716,7 +1803,10 @@ class BassPlayer {
       _bassMix = null;
       _bassSync = null;
       _bassChannel = null;
-      log.bass.warn('legacy', 'BASSmix not available: $error; gapless playback disabled');
+      log.bass.warn(
+        'legacy',
+        'BASSmix not available: $error; gapless playback disabled',
+      );
     }
   }
 
@@ -1842,7 +1932,10 @@ class BassPlayer {
             return tempoHandle;
           }
         } catch (error) {
-          log.bass.warn('legacy', '[bass] direct tempo stream unavailable: $error');
+          log.bass.warn(
+            'legacy',
+            '[bass] direct tempo stream unavailable: $error',
+          );
         }
         _bass.BASS_StreamFree(source);
       }
@@ -1869,7 +1962,10 @@ class BassPlayer {
         return source;
       }
       _bass.BASS_StreamFree(source);
-      log.bass.warn('legacy', '[bass] mixer creation failed; using direct shared output');
+      log.bass.warn(
+        'legacy',
+        '[bass] mixer creation failed; using direct shared output',
+      );
     }
     final direct = _createDirectSharedStream(audioPath);
     if (direct != 0) {
@@ -1988,7 +2084,10 @@ class BassPlayer {
     clearGaplessSource();
     _cancelTransition();
     if (seamless != _mixerUsesQueue) {
-      log.bass.debug('legacy', '[bass] transition mode will apply after the next source rebuild',);
+      log.bass.debug(
+        'legacy',
+        '[bass] transition mode will apply after the next source rebuild',
+      );
       _transitionHandledCompletion = false;
       return false;
     }
@@ -2034,9 +2133,14 @@ class BassPlayer {
       if (!seamless) {
         _scheduleAutoTransition();
       }
+      _publishAudioFiles();
       return true;
     } catch (error, trace) {
-      log.bass.warn('legacy', '[bass] preparing gapless source failed: $error', stackTrace: trace,);
+      log.bass.warn(
+        'legacy',
+        '[bass] preparing gapless source failed: $error',
+        stackTrace: trace,
+      );
       if (_queuedStream == nextStream) {
         _queuedStream = null;
         _queuedStreamAttached = false;
@@ -2051,6 +2155,7 @@ class BassPlayer {
       } else {
         _bass.BASS_StreamFree(nextStream);
       }
+      _publishAudioFiles();
       return false;
     }
   }
@@ -2083,6 +2188,7 @@ class BassPlayer {
     );
     _smartPreparation = preparation;
     _smartIncomingNativeOwned = false;
+    _publishAudioFiles();
     return preparation;
   }
 
@@ -2103,6 +2209,7 @@ class BassPlayer {
     }
     _smartPreparation = null;
     _smartIncomingNativeOwned = false;
+    _publishAudioFiles();
   }
 
   GaplessTransition? adoptSmartTransition(int transitionId) {
@@ -2110,6 +2217,7 @@ class BassPlayer {
     if (preparation == null || preparation.transitionId != transitionId) {
       return null;
     }
+    _smartOutgoingPath = _fPath;
     _fstream = preparation.incomingHandle;
     _fPath = preparation.path;
     _cachedLengthSeconds = preparation.lengthSeconds;
@@ -2122,6 +2230,7 @@ class BassPlayer {
     _refreshStreamSampleRate();
     _resetSpectrumSmoothing();
     _emitPositionSnapshot();
+    _publishAudioFiles();
     return GaplessTransition(
       id: transitionId,
       path: preparation.path,
@@ -2138,6 +2247,8 @@ class BassPlayer {
       _bass.BASS_ChannelStop(outgoing);
       _bass.BASS_StreamFree(outgoing);
     }
+    _smartOutgoingPath = null;
+    _publishAudioFiles();
   }
 
   int? _detachGaplessMixer() {
@@ -2214,6 +2325,7 @@ class BassPlayer {
     } else {
       _bass.BASS_StreamFree(queued);
     }
+    _publishAudioFiles();
   }
 
   bool _attachQueuedStream(int generation, int stream) {
@@ -2235,8 +2347,11 @@ class BassPlayer {
       _resumeOutputIfNeeded();
       return true;
     }
-    log.bass.warn('legacy', '[bass] attaching prepared transition source failed: '
-      '${_bass.BASS_ErrorGetCode()}',);
+    log.bass.warn(
+      'legacy',
+      '[bass] attaching prepared transition source failed: '
+          '${_bass.BASS_ErrorGetCode()}',
+    );
     _bass.BASS_StreamFree(stream);
     _queuedStream = null;
     _queuedStreamAttached = false;
@@ -2379,14 +2494,20 @@ class BassPlayer {
       ffi.Pointer<ffi.Void>.fromAddress(generation),
     );
     if (syncHandle == 0) {
-      log.bass.warn('legacy', '[bass] auto transition sync failed: ${_bass.BASS_ErrorGetCode()}',);
+      log.bass.warn(
+        'legacy',
+        '[bass] auto transition sync failed: ${_bass.BASS_ErrorGetCode()}',
+      );
       return;
     }
     _transitionSyncHandle = syncHandle;
     _transitionSyncChannel = current;
-    log.bass.info('legacy', '[bass] auto transition scheduled: mode=${mode.name} '
-      'fadeOut=${fadeOutMs}ms fadeIn=${fadeInMs}ms '
-      'triggerAt=${triggerPos.toStringAsFixed(2)}s len=${currentLength.toStringAsFixed(2)}s',);
+    log.bass.info(
+      'legacy',
+      '[bass] auto transition scheduled: mode=${mode.name} '
+          'fadeOut=${fadeOutMs}ms fadeIn=${fadeInMs}ms '
+          'triggerAt=${triggerPos.toStringAsFixed(2)}s len=${currentLength.toStringAsFixed(2)}s',
+    );
   }
 
   void _onAutoTransitionPos(
@@ -2405,12 +2526,16 @@ class BassPlayer {
   void _beginAutoTransition(int generation, int channel) {
     if (generation != _transitionGeneration) return;
     if (channel != _fstream) return;
+    _lingeringPath = _fPath;
     final newStream = _queuedStream;
     if (newStream == null) return;
     _transitionTimer?.cancel();
     final pref = AppPreference.instance.playbackPref;
     final mode = _queuedTransitionMode ?? pref.transitionMode;
-    log.bass.info('legacy', '[bass] auto transition triggered: mode=${mode.name}');
+    log.bass.info(
+      'legacy',
+      '[bass] auto transition triggered: mode=${mode.name}',
+    );
     final fadeOutMs = pref.transitionFadeOutMs;
     final fadeInMs = pref.transitionFadeInMs;
     final crossfade = mode == TransitionMode.crossfade;
@@ -2504,8 +2629,11 @@ class BassPlayer {
     final state = _bass.BASS_ChannelIsActive(output);
     if (!shouldRestartStoppedMixer(state)) return;
     if (_bass.BASS_ChannelStart(output) == 0) {
-      log.bass.warn('legacy', '[bass] resuming mixer after transition failed: '
-        '${_bass.BASS_ErrorGetCode()}',);
+      log.bass.warn(
+        'legacy',
+        '[bass] resuming mixer after transition failed: '
+            '${_bass.BASS_ErrorGetCode()}',
+      );
       return;
     }
     log.bass.debug('legacy', '[bass] resumed mixer after transition');
@@ -2578,6 +2706,7 @@ class BassPlayer {
       });
     }
     _emitPositionSnapshot();
+    _publishAudioFiles();
     return transition;
   }
 
@@ -2618,8 +2747,11 @@ class BassPlayer {
       if (exclusive) {
         final conflicts = exclusiveModeConflicts;
         if (conflicts.isNotEmpty) {
-          log.bass.info('legacy', '[bass] exclusive mode requested with upper-layer conflicts: '
-            '${conflicts.join('、')}',);
+          log.bass.info(
+            'legacy',
+            '[bass] exclusive mode requested with upper-layer conflicts: '
+                '${conflicts.join('、')}',
+          );
         }
       }
       final lastPos = position;
@@ -2920,6 +3052,8 @@ class BassPlayer {
     }
     _bass.BASS_ChannelStop(handle);
     _bass.BASS_StreamFree(handle);
+    if (_fadeOutHandle == null) _lingeringPath = null;
+    _publishAudioFiles();
     _resumeOutputIfNeeded();
     if (completeTransition && removeFromMixer && _isOutputActive()) {
       _markTransitionOutputHealthy();
@@ -2973,7 +3107,9 @@ class BassPlayer {
         final output = _mixerStream == null
             ? oldHandle
             : _detachGaplessMixer()!;
-        // 手动切歌防爆音：固定短淡出（300ms），新歌立即淡入
+        // 手动切歌防爆音：固定短淡出（300ms），新歌立即淡入。
+        // 旧文件还要等淡出结束才松开。
+        _lingeringPath = _fPath;
         _fadeOutOldStream(output, durationMs: 300, delayCleanup: true);
       }
       _fstream = null;
@@ -3047,6 +3183,7 @@ class BassPlayer {
           throw const FormatException('Some other mystery problem!');
       }
     }
+    _publishAudioFiles();
   }
 
   /// [BASS_ATTRIB_VOLDSP] attribute does have direct effect on decoding/recording channels.
@@ -3105,7 +3242,10 @@ class BassPlayer {
 
     // bass_fx.dll 已在构造时预加载，直接使用
     if (wasapiExclusive && _rate != 1.0) {
-      log.bass.warn('legacy', '[bass] rate change in exclusive mode, fallback to shared mode');
+      log.bass.warn(
+        'legacy',
+        '[bass] rate change in exclusive mode, fallback to shared mode',
+      );
       useExclusiveMode(false);
       return;
     }
@@ -3125,7 +3265,10 @@ class BassPlayer {
               freqPtr,
             ) !=
             0) {
-          log.bass.warn('legacy', 'BASS_ATTRIB_TEMPO failed, and fallback implementation is skipped.',);
+          log.bass.warn(
+            'legacy',
+            'BASS_ATTRIB_TEMPO failed, and fallback implementation is skipped.',
+          );
         }
       } finally {
         malloc.free(freqPtr);
@@ -3143,7 +3286,10 @@ class BassPlayer {
 
     // bass_fx.dll 已在构造时预加载，直接使用
     if (wasapiExclusive && _pitch != 0.0) {
-      log.bass.warn('legacy', '[bass] pitch change in exclusive mode, fallback to shared mode',);
+      log.bass.warn(
+        'legacy',
+        '[bass] pitch change in exclusive mode, fallback to shared mode',
+      );
       useExclusiveMode(false);
       return;
     }
@@ -3252,7 +3398,10 @@ class BassPlayer {
     try {
       _bassWasapiInit();
     } catch (err) {
-      log.bass.warn('legacy', '[bass] wasapi exclusive init failed, fallback to shared: $err');
+      log.bass.warn(
+        'legacy',
+        '[bass] wasapi exclusive init failed, fallback to shared: $err',
+      );
       showTextOnSnackBar('独占模式初始化失败，已切回共享模式', variant: ToastVariant.error);
       _fallbackFromExclusive();
       onExclusiveModeChanged?.call(false);
@@ -3494,8 +3643,13 @@ class BassPlayer {
     if (smartOutgoing != null && smartOutgoing != _fstream) {
       _bass.BASS_StreamFree(smartOutgoing);
     }
+    _lingeringPath = null;
+    _smartOutgoingPath = null;
 
-    if (_fstream == null) return;
+    if (_fstream == null) {
+      _publishAudioFiles();
+      return;
+    }
 
     _stopWasapiOutputIfNeeded();
     _removeAudioEffects();
@@ -3507,6 +3661,7 @@ class BassPlayer {
       _cachedLengthSeconds = null;
       _streamWasapiExclusive = false;
       _eqHandles.clear();
+      _publishAudioFiles();
       return;
     }
 
@@ -3526,6 +3681,7 @@ class BassPlayer {
     _cachedLengthSeconds = null;
     _streamWasapiExclusive = false;
     _eqHandles.clear();
+    _publishAudioFiles();
   }
 
   /// Frees all resources used by the output device,
@@ -3576,6 +3732,10 @@ class BassPlayer {
     _fstream = null;
     _fPath = null;
     _cachedLengthSeconds = null;
+    _lingeringPath = null;
+    _smartOutgoingPath = null;
+    _queuedPath = null;
+    _publishAudioFiles();
 
     _releaseMidiFontPointer();
     _midiFontPath = null;
@@ -3584,7 +3744,10 @@ class BassPlayer {
     if (_bass.BASS_Free() == 0) {
       switch (_bass.BASS_ErrorGetCode()) {
         case bass.BASS_ERROR_INIT:
-          log.bass.warn('legacy', 'BASS_Free is called before BASS_Init complete normally.');
+          log.bass.warn(
+            'legacy',
+            'BASS_Free is called before BASS_Init complete normally.',
+          );
           break;
         case bass.BASS_ERROR_BUSY:
           throw const FormatException(

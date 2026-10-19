@@ -267,10 +267,7 @@ class _ThemeColorModeControlState extends State<_ThemeColorModeControl> {
         showSelectedIcon: false,
         segments: const [
           ButtonSegment(value: ThemeColorMode.material3, label: Text('生成配色')),
-          ButtonSegment(
-            value: ThemeColorMode.independent,
-            label: Text('直接强调'),
-          ),
+          ButtonSegment(value: ThemeColorMode.independent, label: Text('直接强调')),
         ],
         selected: {settings.themeColorMode},
         onSelectionChanged: _updating
@@ -1317,10 +1314,7 @@ class _ThemeColorSourceControlState extends State<_ThemeColorSourceControl> {
             segments: const [
               ButtonSegment(value: ThemeColorSource.cover, label: Text('封面')),
               ButtonSegment(value: ThemeColorSource.system, label: Text('系统')),
-              ButtonSegment(
-                value: ThemeColorSource.custom,
-                label: Text('自定义'),
-              ),
+              ButtonSegment(value: ThemeColorSource.custom, label: Text('自定义')),
             ],
             selected: {source},
             onSelectionChanged: _updating || _isPickingColor
@@ -1368,8 +1362,6 @@ class _ThemeColorSourceControlState extends State<_ThemeColorSourceControl> {
       ),
     );
   }
-
-
 }
 
 /// 自定义主题色选择对话框 — HSV 色域 + 色相条 + Hex 输入
@@ -2295,7 +2287,6 @@ class _DesktopColorSetting extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _DesktopColorResult {
@@ -3098,14 +3089,12 @@ class _FontSelectorState extends State<_FontSelector> {
               Expanded(child: _fontList(scheme)),
               const SizedBox(height: 16.0),
               _fontDialogActions(),
-
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _fontDialogActions() {
     return OverflowBar(
@@ -3167,7 +3156,6 @@ class _FontSelectorState extends State<_FontSelector> {
       ),
     );
   }
-
 
   Widget _clearQueryButton() {
     return IconButton(
@@ -3416,8 +3404,6 @@ class SettingsEmptyState extends StatelessWidget {
       ],
     );
   }
-
-
 }
 
 /// 设置分组入口行，点击进入对应二级页面
@@ -4129,6 +4115,7 @@ class _LyricWritingGroupState extends State<_LyricWritingGroup> {
         subtitle: switch (mode) {
           LyricWriteMode.ask => '空标签时询问是否写入',
           LyricWriteMode.auto => '空标签自动写入，已有歌词仍会询问覆盖',
+          LyricWriteMode.always => '直接覆盖写入，不弹出提示',
           LyricWriteMode.off => '不写标签、不弹出提示',
         },
         action: SegmentedButton<LyricWriteMode>(
@@ -4136,6 +4123,7 @@ class _LyricWritingGroupState extends State<_LyricWritingGroup> {
           segments: const [
             ButtonSegment(value: LyricWriteMode.ask, label: Text('询问')),
             ButtonSegment(value: LyricWriteMode.auto, label: Text('自动')),
+            ButtonSegment(value: LyricWriteMode.always, label: Text('始终')),
             ButtonSegment(value: LyricWriteMode.off, label: Text('关闭')),
           ],
           selected: {mode},
@@ -4178,7 +4166,9 @@ class _LyricWritingGroupState extends State<_LyricWritingGroup> {
   }
 
   Widget _writeDelayTile() {
-    final auto = settings.lyricWriteMode == LyricWriteMode.auto;
+    final auto =
+        settings.lyricWriteMode == LyricWriteMode.auto ||
+        settings.lyricWriteMode == LyricWriteMode.always;
     final delay = auto
         ? settings.autoWriteLyricToTagDelay
         : settings.promptWriteLyricToTagDelay;
@@ -4195,7 +4185,8 @@ class _LyricWritingGroupState extends State<_LyricWritingGroup> {
           label: '$delay秒',
           onChanged: (value) {
             setState(() {
-              if (settings.lyricWriteMode == LyricWriteMode.auto) {
+              if (settings.lyricWriteMode == LyricWriteMode.auto ||
+                  settings.lyricWriteMode == LyricWriteMode.always) {
                 settings.autoWriteLyricToTagDelay = value.round();
               } else {
                 settings.promptWriteLyricToTagDelay = value.round();
@@ -4658,9 +4649,8 @@ class _DesktopWindowGroupState extends State<_DesktopWindowGroup>
           subtitle: '锁定后鼠标停一会显示解锁按钮',
           action: Switch(
             value: settings.desktopHoverUnlock,
-            onChanged: (v) => updateDesktopLyricConfig(
-              () => settings.desktopHoverUnlock = v,
-            ),
+            onChanged: (v) =>
+                updateDesktopLyricConfig(() => settings.desktopHoverUnlock = v),
           ),
         ),
         const SizedBox(height: 16),

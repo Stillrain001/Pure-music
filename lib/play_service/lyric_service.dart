@@ -18,6 +18,7 @@ import 'package:pure_music/core/matcher.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/native/bass/bass_player.dart';
+import 'package:pure_music/play_service/audio_tag_write_scheduler.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/lyric_write_prompt_history.dart';
 import 'package:pure_music/native/rust/api/tag_reader.dart';
@@ -339,6 +340,13 @@ class _LyricCache {
 final _LyricCache _lyricCache = _LyricCache();
 
 /// 只通知 lyric 变更
+class OffsetTagSaveResult {
+  const OffsetTagSaveResult({this.error, this.deferred = false});
+
+  final String? error;
+  final bool deferred;
+}
+
 class LyricService extends ChangeNotifier {
   final PlayService playService;
 
@@ -1333,23 +1341,26 @@ class LyricService extends ChangeNotifier {
     final settings = AppSettings.instance;
     if (settings.lyricWriteMode == LyricWriteMode.off) return;
     if (!_lyricWritePromptHistory.shouldPrompt(audioPath)) return;
-    final useAutoWrite = settings.lyricWriteMode == LyricWriteMode.auto;
+    final writesWithoutPrompt =
+        settings.lyricWriteMode == LyricWriteMode.auto ||
+        settings.lyricWriteMode == LyricWriteMode.always;
     final delay = Duration(
-      seconds: useAutoWrite
+      seconds: writesWithoutPrompt
           ? settings.autoWriteLyricToTagDelay
           : settings.promptWriteLyricToTagDelay,
     );
     final generation = _promptGeneration;
     _promptTimer = Timer(
       delay,
-      () => _runLyricWritePrompt(audioPath, generation, useAutoWrite),
+      () =>
+          _runLyricWritePrompt(audioPath, generation, settings.lyricWriteMode),
     );
   }
 
   void _runLyricWritePrompt(
     String audioPath,
     int generation,
-    bool useAutoWrite,
+    LyricWriteMode mode,
   ) {
     if (generation != _promptGeneration) return;
     final nowPlaying = _getNowPlaying();
@@ -1377,13 +1388,13 @@ class LyricService extends ChangeNotifier {
         _lyricWritePromptHistory.markEmbeddedLyricFound(audioPath);
         return;
       }
-      if (useAutoWrite && !hasEmbedded) {
+      if (mode == LyricWriteMode.always ||
+          (mode == LyricWriteMode.auto && !hasEmbedded)) {
         _writeLyricTextToTag(audioPath, lrcText, notifyUser: false);
         return;
       }
       showLyricWritePrompt(
-        title: nowPlaying.title,
-        message: hasEmbedded ? '文件里已有歌词，用网上这首覆盖吗？' : '写入标签？',
+        message: hasEmbedded ? '覆盖已有歌词？' : '写入标签？',
         confirmLabel: hasEmbedded ? '覆盖' : '写入',
         onWrite: () =>
             _writeLyricTextToTag(audioPath, lrcText, notifyUser: true),
@@ -1397,22 +1408,49 @@ class LyricService extends ChangeNotifier {
     String lrcText, {
     required bool notifyUser,
   }) {
-    writeLyricToPath(path: audioPath, lyric: lrcText)
-        .then((_) {
-          _lyricWritePromptHistory.markPromptShown(audioPath);
-          if (notifyUser) {
-            showTextOnSnackBar('歌词已写入标签', variant: ToastVariant.success);
-          }
-        })
-        .catchError((Object e, StackTrace trace) {
-          _lyricWritePromptHistory.markWriteFailed(audioPath);
-          if (notifyUser) {
-            log.lyric.error('legacy', '写入歌词标签失败', error: e, stackTrace: trace);
-            showTextOnSnackBar('写入标签失败，请查看日志', variant: ToastVariant.error);
-          } else {
-            log.lyric.error('legacy', '自动写入歌词标签失败: $e');
-          }
-        });
+    unawaited(() async {
+      try {
+        final timing = await audioTagWriteScheduler.submit(
+          path: audioPath,
+          write: () => writeLyricToPath(path: audioPath, lyric: lrcText),
+          onError: (error, trace) {
+            _lyricWritePromptHistory.markWriteFailed(audioPath);
+            if (notifyUser) {
+              log.lyric.error(
+                'legacy',
+                '写入歌词标签失败',
+                error: error,
+                stackTrace: trace,
+              );
+              showTextOnSnackBar('写入标签失败，请查看日志', variant: ToastVariant.error);
+            } else {
+              log.lyric.error('legacy', '自动写入歌词标签失败: $error');
+            }
+          },
+        );
+        _lyricWritePromptHistory.markPromptShown(audioPath);
+        if (!notifyUser) return;
+        showTextOnSnackBar(
+          timing == AudioTagWriteTiming.afterPlayback
+              ? '将在播放结束后写入标签'
+              : '歌词已写入标签',
+          variant: ToastVariant.success,
+        );
+      } catch (error, trace) {
+        _lyricWritePromptHistory.markWriteFailed(audioPath);
+        if (notifyUser) {
+          log.lyric.error(
+            'legacy',
+            '写入歌词标签失败',
+            error: error,
+            stackTrace: trace,
+          );
+          showTextOnSnackBar('写入标签失败，请查看日志', variant: ToastVariant.error);
+        } else {
+          log.lyric.error('legacy', '自动写入歌词标签失败: $error');
+        }
+      }
+    }());
   }
 
   /// 用户选择忽略 → 仅本次提示不再显示，不影响设置
@@ -1505,16 +1543,22 @@ class LyricService extends ChangeNotifier {
 
   /// 把当前偏移写进正在使用的歌词里。外置文件写回文件，否则写进乐曲标签。
   /// 只有解析结果和时间对得上，才换上新歌词并清掉播放器里的额外偏移。
-  Future<String?> saveCurrentOffsetToTag() async {
+  Future<OffsetTagSaveResult> saveCurrentOffsetToTag() async {
     final nowPlaying = _getNowPlaying();
     final lyric = _currLyric;
-    if (nowPlaying == null || lyric == null) return '当前没有歌词';
+    if (nowPlaying == null || lyric == null) {
+      return const OffsetTagSaveResult(error: '当前没有歌词');
+    }
     final audioPath = nowPlaying.path;
     final extra = LyricManualOffset.instance.manualMs;
-    if (extra == 0) return '当前偏移是 0，不用写入';
+    if (extra == 0) {
+      return const OffsetTagSaveResult(error: '当前偏移是 0，不用写入');
+    }
 
     final externalPath = await _externalLyricPathForSave(audioPath);
-    if (_getNowPlaying()?.path != audioPath) return null;
+    if (_getNowPlaying()?.path != audioPath) {
+      return const OffsetTagSaveResult();
+    }
 
     final String sourceText;
     final Lyric? parsed;
@@ -1522,14 +1566,14 @@ class LyricService extends ChangeNotifier {
     if (externalPath != null) {
       final raw = await readLyricFileText(externalPath);
       if (raw == null || raw.trim().isEmpty) {
-        return '读不到外置歌词，偏移仍记在播放器里';
+        return const OffsetTagSaveResult(error: '读不到外置歌词，偏移仍记在播放器里');
       }
       sourceText = lyricTextWithAddedOffset(raw, extra);
       parsed = parseExternalLyricText(sourceText, p.extension(externalPath));
     } else if (online) {
       final raw = lyric.rawText;
       if (raw == null || raw.trim().isEmpty) {
-        return '网络歌词写进文件后会对不齐，偏移仍记在播放器里';
+        return const OffsetTagSaveResult(error: '网络歌词写进文件后会对不齐，偏移仍记在播放器里');
       }
       sourceText = lyricTextWithAddedOffset(raw, extra);
       parsed = parseEmbeddedLyricText(sourceText);
@@ -1539,36 +1583,54 @@ class LyricService extends ChangeNotifier {
           ? embedded
           : lyric.rawText;
       if (raw == null || raw.trim().isEmpty) {
-        return '这份歌词没有原文，偏移仍记在播放器里';
+        return const OffsetTagSaveResult(error: '这份歌词没有原文，偏移仍记在播放器里');
       }
       sourceText = lyricTextWithAddedOffset(raw, extra);
       parsed = parseEmbeddedLyricText(sourceText);
     }
-    if (_getNowPlaying()?.path != audioPath) return null;
+    if (_getNowPlaying()?.path != audioPath) {
+      return const OffsetTagSaveResult();
+    }
     if (parsed == null || !lyricOffsetShiftMatches(lyric, parsed, extra)) {
-      return externalPath != null
-          ? '这种外置歌词写回后会对不齐，偏移仍记在播放器里'
-          : '写进标签后会对不齐，偏移仍记在播放器里';
+      return OffsetTagSaveResult(
+        error: externalPath != null
+            ? '这种外置歌词写回后会对不齐，偏移仍记在播放器里'
+            : '写进标签后会对不齐，偏移仍记在播放器里',
+      );
     }
 
+    var deferred = false;
     try {
       if (externalPath != null) {
         await writeTextFileAtomically(externalPath, sourceText);
       } else {
-        await writeLyricToPath(path: audioPath, lyric: sourceText);
+        final timing = await audioTagWriteScheduler.submit(
+          path: audioPath,
+          write: () => writeLyricToPath(path: audioPath, lyric: sourceText),
+          onError: (error, trace) {
+            log.lyric.error(
+              'legacy',
+              '写入歌词偏移失败',
+              error: error,
+              stackTrace: trace,
+            );
+            showTextOnSnackBar('写入标签失败，请查看日志', variant: ToastVariant.error);
+          },
+        );
+        deferred = timing == AudioTagWriteTiming.afterPlayback;
       }
     } catch (error, trace) {
       log.lyric.error('legacy', '写入歌词偏移失败', error: error, stackTrace: trace);
-      return externalPath != null
-          ? '写入歌词文件失败，请查看日志'
-          : '写入标签失败，请查看日志';
+      return OffsetTagSaveResult(
+        error: externalPath != null ? '写入歌词文件失败，请查看日志' : '写入标签失败，请查看日志',
+      );
     }
     if (_getNowPlaying()?.path != audioPath) {
       LyricManualOffset.instance.forget(audioPath);
-      return null;
+      return const OffsetTagSaveResult();
     }
     _installLyricWithOffsetBaked(audioPath, parsed, externalPath != null);
-    return null;
+    return OffsetTagSaveResult(deferred: deferred);
   }
 
   Future<String?> _externalLyricPathForSave(String audioPath) async {

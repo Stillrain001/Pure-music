@@ -8,4 +8,4 @@ enum ThemeColorSource { cover, system, custom }
 
 enum WindowCloseBehavior { exit, minimizeToTray }
 
-enum LyricWriteMode { ask, auto, off }
+enum LyricWriteMode { ask, auto, always, off }
