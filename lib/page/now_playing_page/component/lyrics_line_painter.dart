@@ -291,16 +291,23 @@ double lyricVerticalCharLiftPx({
   return -spring * liftPeak;
 }
 
+const lyricLiftWindowFonts = 3.0;
+
 double lyricCosineLiftPx({
   required double charCenter,
   required double cursorX,
   required double lineEndX,
   required double fontSize,
   required double liftPeak,
+  double? lineLeft,
 }) {
-  const window = 3.0;
-  final windowPx = window * fontSize;
-  final u = (charCenter - cursorX + windowPx / 2) / windowPx;
+  final windowPx = lyricLiftWindowFonts * fontSize;
+  final lead = windowPx / 2;
+  // 行首没有窗口前的那段距离。不把起点夹到行左边，第一个字会从曲线最陡处弹起。
+  final rampStart = lineLeft == null
+      ? charCenter - lead
+      : (lineLeft > charCenter - lead ? lineLeft : charCenter - lead);
+  final u = 1 - (cursorX - rampStart) / windowPx;
   final remaining = lineEndX - cursorX;
   final q = remaining < windowPx / 2
       ? (1.0 - remaining / (windowPx / 2)).clamp(0.0, 1.0)
@@ -1855,6 +1862,7 @@ class LyricsLinePainter extends CustomPainter {
                 lineEndX: lineEndX,
                 fontSize: fontSize,
                 liftPeak: config.liftPeak,
+                lineLeft: left,
               ),
               liftGate,
             );

@@ -575,6 +575,38 @@ void main() {
       expect(trueEnd.abs(), greaterThan(midWrap.abs()));
     });
 
+    test('first glyph eases in from the line edge instead of starting mid-curve', () {
+      const fontSize = 20.0;
+      const peak = 2.0;
+      const lineLeft = 0.0;
+      const charCenter = 8.0;
+      final atEdge = lyricCosineLiftPx(
+        charCenter: charCenter,
+        cursorX: lineLeft,
+        lineEndX: 200,
+        fontSize: fontSize,
+        liftPeak: peak,
+        lineLeft: lineLeft,
+      );
+      final early = lyricCosineLiftPx(
+        charCenter: charCenter,
+        cursorX: lineLeft + fontSize * 0.45,
+        lineEndX: 200,
+        fontSize: fontSize,
+        liftPeak: peak,
+        lineLeft: lineLeft,
+      );
+      final unclamped = lyricCosineLiftPx(
+        charCenter: charCenter,
+        cursorX: lineLeft,
+        lineEndX: 200,
+        fontSize: fontSize,
+        liftPeak: peak,
+      );
+      expect(atEdge, 0);
+      expect(early.abs(), lessThan(unclamped.abs() * 0.5));
+    });
+
     test('follows the highlight cursor instead of lifting the whole line', () {
       const fontSize = 20.0;
       const peak = 2.0;
