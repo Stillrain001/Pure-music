@@ -13,11 +13,7 @@ void main() {
       ),
     );
 
-    showLyricWritePrompt(
-      title: 'Song',
-      onWrite: () => writePressed = true,
-      onDismiss: () {},
-    );
+    showLyricWritePrompt(onWrite: () => writePressed = true, onDismiss: () {});
     await tester.pump();
 
     await tester.tap(find.text('写入'), warnIfMissed: false);
@@ -37,30 +33,26 @@ void main() {
       ),
     );
 
-    showLyricWritePrompt(
-      title: 'Song',
-      onWrite: () {},
-      onDismiss: () {},
-    );
+    showLyricWritePrompt(onWrite: () {}, onDismiss: () {});
     await tester.pump();
 
-    final promptContainer = tester.widget<Container>(
+    final prompt = tester.widget<DecoratedBox>(
       find
-          .ancestor(
-            of: find.text('写入标签？'),
-            matching: find.byType(Container),
-          )
+          .ancestor(of: find.text('写入标签？'), matching: find.byType(DecoratedBox))
           .first,
     );
-    final decoration = promptContainer.decoration! as BoxDecoration;
+    final decoration = prompt.decoration as BoxDecoration;
     expect(decoration.color, scheme.inverseSurface);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.byType(TextButton), findsOneWidget);
 
     await tester.tap(find.text('写入'));
     await tester.pump();
   });
 
-  testWidgets('lyric write prompt can be removed when the song changes',
-      (tester) async {
+  testWidgets('lyric write prompt can be removed when the song changes', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: routerKey,
@@ -69,11 +61,7 @@ void main() {
       ),
     );
 
-    final shown = showLyricWritePrompt(
-      title: 'Song',
-      onWrite: () {},
-      onDismiss: () {},
-    );
+    final shown = showLyricWritePrompt(onWrite: () {}, onDismiss: () {});
     await tester.pump();
     expect(shown, isTrue);
     expect(find.text('写入标签？'), findsOneWidget);

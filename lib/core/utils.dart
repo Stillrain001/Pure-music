@@ -457,11 +457,8 @@ void showTextOnSnackBar(
 
   final visible = ValueNotifier(false);
   final entry = OverlayEntry(
-    builder: (context) => _SnackToastBubble(
-      text: text,
-      icon: effectiveIcon,
-      visible: visible,
-    ),
+    builder: (context) =>
+        _SnackToastBubble(text: text, icon: effectiveIcon, visible: visible),
   );
 
   _toastEntry = entry;
@@ -533,7 +530,6 @@ void showHotkeyToast({required String text, IconData? icon}) {
 
 /// 显示网络歌词写入标签的提示（Overlay bubble）
 bool showLyricWritePrompt({
-  required String title,
   required VoidCallback onWrite,
   required VoidCallback onDismiss,
   VoidCallback? onTimeout,
@@ -553,7 +549,6 @@ bool showLyricWritePrompt({
   entry = OverlayEntry(
     builder: (context) => _LyricWritePromptBubble(
       visible: visible,
-      title: title,
       message: message,
       confirmLabel: confirmLabel,
       onWrite: () {
@@ -598,12 +593,9 @@ void hideLyricWritePrompt() {
   _lyricWriteEntry = null;
 }
 
-
-
 class _LyricWritePromptBubble extends StatelessWidget {
   const _LyricWritePromptBubble({
     required this.visible,
-    required this.title,
     required this.message,
     required this.confirmLabel,
     required this.onWrite,
@@ -611,7 +603,6 @@ class _LyricWritePromptBubble extends StatelessWidget {
   });
 
   final ValueNotifier<bool> visible;
-  final String title;
   final String message;
   final String confirmLabel;
   final VoidCallback onWrite;
@@ -650,66 +641,48 @@ class _LyricWritePromptBubble extends StatelessWidget {
   }
 
   Widget _card(ColorScheme scheme, TextTheme textTheme) {
-    return Material(
-      type: MaterialType.transparency,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.md,
-          vertical: Spacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: scheme.inverseSurface,
-          borderRadius: const BorderRadius.all(Radius.circular(4)),
-          boxShadow: [
-            BoxShadow(
-              color: scheme.shadow.withAlpha(40),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+    final onInverse = scheme.onInverseSurface;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.inverseSurface,
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withAlpha(40),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.lyrics_outlined,
-              size: 16,
-              color: scheme.onInverseSurface,
-            ),
-            const SizedBox(width: Spacing.sm),
             Text(
               message,
-              style: textTheme.labelLarge?.copyWith(
-                color: scheme.onInverseSurface,
-              ),
+              style: textTheme.labelLarge?.copyWith(color: onInverse),
             ),
-            const SizedBox(width: Spacing.sm),
-            Text(
-              title,
-              style: textTheme.labelLarge?.copyWith(
-                color: scheme.onInverseSurface,
+            const SizedBox(width: 12),
+            TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: onInverse,
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
+              child: const Text('跳过'),
             ),
-            const SizedBox(width: Spacing.sm),
-            GestureDetector(
-              onTap: onWrite,
-              child: Text(
-                confirmLabel,
-                style: textTheme.labelLarge?.copyWith(
-                  color: scheme.onInverseSurface,
-                  fontWeight: AppType.weightBold,
-                ),
+            const SizedBox(width: 4),
+            FilledButton(
+              onPressed: onWrite,
+              style: FilledButton.styleFrom(
+                backgroundColor: onInverse,
+                foregroundColor: scheme.inverseSurface,
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-            ),
-            const SizedBox(width: Spacing.sm),
-            GestureDetector(
-              onTap: onSkip,
-              child: Text(
-                '\u8df3\u8fc7',
-                style: textTheme.labelLarge?.copyWith(
-                  color: scheme.onInverseSurface,
-                ),
-              ),
+              child: Text(confirmLabel),
             ),
           ],
         ),
@@ -717,7 +690,6 @@ class _LyricWritePromptBubble extends StatelessWidget {
     );
   }
 }
-
 
 Widget _toastAppear(bool visible, Widget? child) {
   return AnimatedOpacity(
@@ -792,17 +764,13 @@ class _SnackToastBubble extends StatelessWidget {
           children: [
             Icon(icon, size: 16, color: txtColor),
             const SizedBox(width: Spacing.sm),
-            Text(
-              text,
-              style: textTheme.labelLarge?.copyWith(color: txtColor),
-            ),
+            Text(text, style: textTheme.labelLarge?.copyWith(color: txtColor)),
           ],
         ),
       ),
     );
   }
 }
-
 
 class _HotkeyToastBubble extends StatelessWidget {
   const _HotkeyToastBubble({
