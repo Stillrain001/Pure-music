@@ -289,7 +289,7 @@ class AppSettings {
   bool enableCoverPointerSheen = true;
   bool enableDetailHeaderCollapseMotion = true;
   bool enableDataTransitionMotion = true;
-  bool alwaysShowNowPlayingControls = false;
+  bool alwaysShowNowPlayingControls = true;
   bool alwaysShowNowPlayingTransport = false;
   bool globalHotkeysEnabled = false;
   Map<HotkeyAction, HotkeyBinding> inAppHotkeys = defaultInAppHotkeys();
@@ -485,7 +485,7 @@ class AppSettings {
     );
     _instance.alwaysShowNowPlayingControls = normalizedBoolSetting(
       settingsMap['AlwaysShowNowPlayingControls'],
-      defaultValue: false,
+      defaultValue: true,
     );
     _instance.alwaysShowNowPlayingTransport = normalizedBoolSetting(
       settingsMap['AlwaysShowNowPlayingTransport'],
