@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:pure_music/component/index_progress_view.dart';
 import 'package:pure_music/native/rust/api/tag_reader.dart';
-import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -112,58 +112,8 @@ class _BuildIndexStateViewState extends State<BuildIndexStateView> {
         if (mounted) unawaited(_completeBuild());
       });
     }
-    return _progressBody(
-      scheme,
-      snapshot.data?.progress,
-      snapshot.data?.message ?? '正在准备曲库索引…',
-    );
-  }
-
-
-  Widget _percentBadge(ColorScheme scheme, double progress) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: AppRadius.mdCircular,
-      ),
-      child: Text(
-        '${(progress.clamp(0.0, 1.0) * 100).round()}%',
-        style: TextStyle(
-          color: scheme.onSurfaceVariant,
-          fontSize: AppType.caption,
-        ),
-      ),
-    );
-  }
-
-  Widget _progressBody(ColorScheme scheme, double? progress, String message) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        LinearProgressIndicator(
-          value: progress,
-          borderRadius: AppRadius.xsCircular,
-        ),
-        const SizedBox(height: 8.0),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                message,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: scheme.onSurface),
-              ),
-            ),
-            if (progress != null) ...[
-              const SizedBox(width: 8.0),
-              _percentBadge(scheme, progress),
-            ],
-          ],
-        ),
-      ],
-    );
+    // 阶段文案、不可读计数与完成态统一走共享扫描视图；
+    // 首次建库失败走页面级错误，不在此处重试。
+    return IndexProgressView(state: snapshot.hasData ? snapshot.data : null);
   }
 }

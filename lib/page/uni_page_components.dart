@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/core/list_action_state.dart';
 import 'package:pure_music/library/audio_library.dart';
+import 'package:pure_music/library/hidden_songs.dart';
 import 'package:pure_music/library/playlist.dart';
 import 'package:pure_music/page/uni_page.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/core/menu_styles.dart';
+import 'package:pure_music/component/danger_confirm_dialog.dart';
 import 'package:pure_music/component/motion.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -30,10 +34,7 @@ class ShufflePlay<T> extends StatelessWidget {
           : null,
       icon: const Icon(Symbols.shuffle, size: 20),
       label: const Text('随机播放'),
-      style: const ButtonStyle(
-        fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-      ),
+      style: AppButton.pageAction,
     );
   }
 }
@@ -59,10 +60,7 @@ class PlayAll<T> extends StatelessWidget {
           : null,
       icon: const Icon(Symbols.play_arrow, size: 20),
       label: const Text('列表循环'),
-      style: const ButtonStyle(
-        fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-      ),
+      style: AppButton.pageAction,
     );
   }
 }
@@ -118,13 +116,9 @@ class SortMethodComboBox<T> extends StatelessWidget {
           menuController.open();
         }
       },
-      style: ButtonStyle(
+      style: AppButton.pageAction.copyWith(
         backgroundColor: WidgetStatePropertyAll(scheme.secondaryContainer),
         foregroundColor: WidgetStatePropertyAll(scheme.onSecondaryContainer),
-        fixedSize: const WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 16),
-        ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
         ),
@@ -165,13 +159,7 @@ class SortOrderSwitch<T> extends StatelessWidget {
       onPressed: () =>
           setSortOrder(isAscending ? SortOrder.decending : SortOrder.ascending),
       iconSize: 20,
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-        ),
-      ),
+      style: AppButton.iconSquare,
       icon: AnimatedSwitcher(
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
@@ -208,13 +196,7 @@ class ContentViewSwitch<T> extends StatelessWidget {
       onPressed: () =>
           setContentView(isListView ? ContentView.table : ContentView.list),
       iconSize: 20,
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-        ),
-      ),
+      style: AppButton.iconSquare,
       icon: AnimatedSwitcher(
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
@@ -313,7 +295,6 @@ class _AddAllToPlaylistState extends State<AddAllToPlaylist> {
     }
   }
 
-
   List<Playlist> _targetPlaylists() {
     final excluded = widget.excludedPlaylist;
     if (excluded == null) return playlists;
@@ -411,10 +392,7 @@ class _AddAllToPlaylistState extends State<AddAllToPlaylist> {
             )
           : const Icon(Symbols.add, size: 20),
       label: Text(isAdding ? '添加中' : label),
-      style: const ButtonStyle(
-        fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-      ),
+      style: AppButton.pageAction,
     );
   }
 }
@@ -547,10 +525,7 @@ class _AddSelectedAudiosToPlaylistState<T>
             )
           : const Icon(Symbols.add, size: 20),
       label: Text(isAdding ? '添加中' : '添加到歌单'),
-      style: const ButtonStyle(
-        fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-      ),
+      style: AppButton.pageAction,
     );
   }
 }
@@ -566,7 +541,6 @@ class MultiSelectPlaySelectedAudios<T> extends StatelessWidget {
   final MultiSelectController<T> multiSelectController;
   final List<Audio> Function(Set<T> selected) toAudios;
   final bool shuffle;
-
 
   void _playSelected(List<Audio> audios) {
     if (shuffle) {
@@ -592,12 +566,7 @@ class MultiSelectPlaySelectedAudios<T> extends StatelessWidget {
           onPressed: audios.isEmpty ? null : () => _playSelected(audios),
           icon: Icon(shuffle ? Symbols.shuffle : Symbols.play_arrow, size: 20),
           label: Text(shuffle ? '随机播放' : '播放'),
-          style: const ButtonStyle(
-            fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-            padding: WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: 16),
-            ),
-          ),
+          style: AppButton.pageAction,
         );
       },
     );
@@ -613,7 +582,6 @@ class MultiSelectSelectOrClearAll<T> extends StatelessWidget {
     required this.multiSelectController,
     required this.contentList,
   });
-
 
   void _toggleSelectAll(bool allSelected) {
     if (allSelected) {
@@ -639,15 +607,61 @@ class MultiSelectSelectOrClearAll<T> extends StatelessWidget {
               : () => _toggleSelectAll(allSelected),
           iconSize: 20,
           icon: Icon(allSelected ? Symbols.deselect : Symbols.select_all),
-          style: ButtonStyle(
-            fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-            ),
-          ),
+          style: AppButton.iconSquare,
         );
       },
+    );
+  }
+}
+
+/// 多选视图中的「隐藏所选」：确认后把选中曲目移出曲库列表并清理播放队列。
+class HideSelectedSongs extends StatefulWidget {
+  const HideSelectedSongs({super.key, required this.multiSelectController});
+
+  final MultiSelectController<Audio> multiSelectController;
+
+  @override
+  State<HideSelectedSongs> createState() => _HideSelectedSongsState();
+}
+
+class _HideSelectedSongsState extends State<HideSelectedSongs> {
+  bool _hiding = false;
+
+  Future<void> _hideSelected() async {
+    if (_hiding) return;
+    final selected = _uniqueAudiosByPath(widget.multiSelectController.selected);
+    if (selected.isEmpty) return;
+    final confirmed = await showDangerConfirmDialog(
+      context: context,
+      title: '隐藏选中的 ${selected.length} 首乐曲？',
+      message:
+          '它们将从曲库列表、专辑和歌手页中移除，文件不会删除；'
+          '可在设置或文件夹页的「隐藏歌曲」里恢复。',
+      confirmLabel: '隐藏',
+    );
+    if (!confirmed) return;
+    setState(() => _hiding = true);
+    try {
+      await setSongsHidden(selected, hidden: true);
+      widget.multiSelectController
+        ..useMultiSelectView(false)
+        ..clear();
+      if (mounted) {
+        showTextOnSnackBar('已隐藏 ${selected.length} 首，可在「隐藏歌曲」中恢复');
+      }
+    } finally {
+      if (mounted) setState(() => _hiding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      tooltip: '隐藏所选',
+      onPressed: _hiding ? null : () => unawaited(_hideSelected()),
+      iconSize: 20,
+      icon: const Icon(Symbols.visibility_off),
+      style: AppButton.iconSquare,
     );
   }
 }
@@ -667,13 +681,7 @@ class MultiSelectExit<T> extends StatelessWidget {
       },
       iconSize: 20,
       icon: const Icon(Symbols.cancel),
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-        ),
-      ),
+      style: AppButton.iconSquare,
     );
   }
 }

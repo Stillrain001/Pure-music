@@ -80,7 +80,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -2103948872;
+  int get rustContentHash => -770142052;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -320,8 +320,18 @@ abstract class RustLibApi extends BaseApi {
     required String path,
   });
 
+  Future<List<IndexAudio>> crateApiLibraryDbReadHiddenAudios({
+    required String indexPath,
+  });
+
   Future<List<IndexFolder>> crateApiLibraryDbReadIndexFromSqlite({
     required String indexPath,
+  });
+
+  Future<void> crateApiLibraryDbSetAudiosHidden({
+    required String indexPath,
+    required List<String> paths,
+    required bool hidden,
   });
 
   Future<bool> crateApiUtilsShowInExplorer({required String path});
@@ -421,7 +431,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiNeNetEaseCloudDefaultConstMeta =>
-      const TaskConstMeta(debugName: 'NetEaseCloud_default', argNames: []);
+      const TaskConstMeta(debugName: "NetEaseCloud_default", argNames: []);
 
   @override
   Future<LyricResult> crateApiNeNetEaseCloudGetLyric({
@@ -457,8 +467,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiNeNetEaseCloudGetLyricConstMeta =>
       const TaskConstMeta(
-        debugName: 'NetEaseCloud_get_lyric',
-        argNames: ['that', 'songId'],
+        debugName: "NetEaseCloud_get_lyric",
+        argNames: ["that", "songId"],
       );
 
   @override
@@ -490,7 +500,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiNeNetEaseCloudInitConstMeta =>
-      const TaskConstMeta(debugName: 'NetEaseCloud_init', argNames: ['that']);
+      const TaskConstMeta(debugName: "NetEaseCloud_init", argNames: ["that"]);
 
   @override
   Future<NetEaseCloud> crateApiNeNetEaseCloudNew() {
@@ -518,7 +528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiNeNetEaseCloudNewConstMeta =>
-      const TaskConstMeta(debugName: 'NetEaseCloud_new', argNames: []);
+      const TaskConstMeta(debugName: "NetEaseCloud_new", argNames: []);
 
   @override
   Future<List<Map<String, String>>> crateApiNeNetEaseCloudSearch({
@@ -556,8 +566,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiNeNetEaseCloudSearchConstMeta =>
       const TaskConstMeta(
-        debugName: 'NetEaseCloud_search',
-        argNames: ['that', 'keyword', 'limit'],
+        debugName: "NetEaseCloud_search",
+        argNames: ["that", "keyword", "limit"],
       );
 
   @override
@@ -592,8 +602,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterClearDisplayConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_clear_display',
-        argNames: ['that'],
+        debugName: "SmtcFlutter_clear_display",
+        argNames: ["that"],
       );
 
   @override
@@ -627,7 +637,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterCloseConstMeta =>
-      const TaskConstMeta(debugName: 'SmtcFlutter_close', argNames: ['that']);
+      const TaskConstMeta(debugName: "SmtcFlutter_close", argNames: ["that"]);
 
   @override
   Future<SMTCDebugSnapshot> crateApiSmtcFlutterSmtcFlutterDebugSnapshot({
@@ -661,8 +671,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterDebugSnapshotConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_debug_snapshot',
-        argNames: ['that'],
+        debugName: "SmtcFlutter_debug_snapshot",
+        argNames: ["that"],
       );
 
   @override
@@ -686,7 +696,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterNewConstMeta =>
-      const TaskConstMeta(debugName: 'SmtcFlutter_new', argNames: []);
+      const TaskConstMeta(debugName: "SmtcFlutter_new", argNames: []);
 
   @override
   Future<void> crateApiSmtcFlutterSmtcFlutterRefreshDisplay({
@@ -720,8 +730,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterRefreshDisplayConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_refresh_display',
-        argNames: ['that'],
+        debugName: "SmtcFlutter_refresh_display",
+        argNames: ["that"],
       );
 
   @override
@@ -764,8 +774,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmtcFlutterSmtcFlutterSubscribeToControlEventsConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_subscribe_to_control_events',
-        argNames: ['that', 'sink'],
+        debugName: "SmtcFlutter_subscribe_to_control_events",
+        argNames: ["that", "sink"],
       );
 
   @override
@@ -807,8 +817,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmtcFlutterSmtcFlutterSubscribeToPositionChangeEventsConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_subscribe_to_position_change_events',
-        argNames: ['that', 'sink'],
+        debugName: "SmtcFlutter_subscribe_to_position_change_events",
+        argNames: ["that", "sink"],
       );
 
   @override
@@ -853,8 +863,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterUpdateDisplayConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_update_display',
-        argNames: ['that', 'title', 'artist', 'album', 'duration', 'path'],
+        debugName: "SmtcFlutter_update_display",
+        argNames: ["that", "title", "artist", "album", "duration", "path"],
       );
 
   @override
@@ -891,8 +901,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmtcFlutterSmtcFlutterUpdateStateConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_update_state',
-        argNames: ['that', 'state'],
+        debugName: "SmtcFlutter_update_state",
+        argNames: ["that", "state"],
       );
 
   @override
@@ -930,8 +940,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmtcFlutterSmtcFlutterUpdateTimePropertiesConstMeta =>
       const TaskConstMeta(
-        debugName: 'SmtcFlutter_update_time_properties',
-        argNames: ['that', 'progress'],
+        debugName: "SmtcFlutter_update_time_properties",
+        argNames: ["that", "progress"],
       );
 
   @override
@@ -960,8 +970,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionAcknowledgeNativeSmartTransitionConstMeta =>
       const TaskConstMeta(
-        debugName: 'acknowledge_native_smart_transition',
-        argNames: ['transitionId'],
+        debugName: "acknowledge_native_smart_transition",
+        argNames: ["transitionId"],
       );
 
   @override
@@ -990,8 +1000,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionAdoptNativeSmartTransitionJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'adopt_native_smart_transition_json',
-        argNames: ['transitionId'],
+        debugName: "adopt_native_smart_transition_json",
+        argNames: ["transitionId"],
       );
 
   @override
@@ -1019,7 +1029,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiAmllTtmlAmllClearCacheConstMeta =>
-      const TaskConstMeta(debugName: 'amll_clear_cache', argNames: []);
+      const TaskConstMeta(debugName: "amll_clear_cache", argNames: []);
 
   @override
   Future<String?> crateApiAmllTtmlAmllGetTtml({required String id}) {
@@ -1047,7 +1057,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiAmllTtmlAmllGetTtmlConstMeta =>
-      const TaskConstMeta(debugName: 'amll_get_ttml', argNames: ['id']);
+      const TaskConstMeta(debugName: "amll_get_ttml", argNames: ["id"]);
 
   @override
   Future<List<AmllSearchItem>> crateApiAmllTtmlAmllSearchLyrics({
@@ -1084,8 +1094,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiAmllTtmlAmllSearchLyricsConstMeta =>
       const TaskConstMeta(
-        debugName: 'amll_search_lyrics',
-        argNames: ['keyword', 'page', 'pageSize', 'cacheDir'],
+        debugName: "amll_search_lyrics",
+        argNames: ["keyword", "page", "pageSize", "cacheDir"],
       );
 
   @override
@@ -1124,8 +1134,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionAnalyzeSmartTransitionTrackConstMeta =>
       const TaskConstMeta(
-        debugName: 'analyze_smart_transition_track',
-        argNames: ['jobId', 'path', 'mediaId', 'libraryRoot'],
+        debugName: "analyze_smart_transition_track",
+        argNames: ["jobId", "path", "mediaId", "libraryRoot"],
       );
 
   @override
@@ -1154,8 +1164,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmartTransitionArmSmartTransitionJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'arm_smart_transition_json',
-        argNames: ['bassDir', 'requestJson'],
+        debugName: "arm_smart_transition_json",
+        argNames: ["bassDir", "requestJson"],
       );
 
   @override
@@ -1196,8 +1206,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiTagReaderBuildIndexFromFoldersRecursivelyConstMeta =>
       const TaskConstMeta(
-        debugName: 'build_index_from_folders_recursively',
-        argNames: ['folders', 'indexPath', 'sink'],
+        debugName: "build_index_from_folders_recursively",
+        argNames: ["folders", "indexPath", "sink"],
       );
 
   @override
@@ -1228,8 +1238,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionCancelNativeSmartTransitionJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'cancel_native_smart_transition_json',
-        argNames: ['transitionId', 'reason'],
+        debugName: "cancel_native_smart_transition_json",
+        argNames: ["transitionId", "reason"],
       );
 
   @override
@@ -1258,8 +1268,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionCancelSmartTransitionAnalysisConstMeta =>
       const TaskConstMeta(
-        debugName: 'cancel_smart_transition_analysis',
-        argNames: ['jobId'],
+        debugName: "cancel_smart_transition_analysis",
+        argNames: ["jobId"],
       );
 
   @override
@@ -1284,7 +1294,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionCloseSmartTransitionEventsConstMeta =>
       const TaskConstMeta(
-        debugName: 'close_smart_transition_events',
+        debugName: "close_smart_transition_events",
         argNames: [],
       );
 
@@ -1317,8 +1327,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsExportPlayCountsConstMeta =>
       const TaskConstMeta(
-        debugName: 'export_play_counts',
-        argNames: ['indexPath'],
+        debugName: "export_play_counts",
+        argNames: ["indexPath"],
       );
 
   @override
@@ -1350,8 +1360,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsExportPlayHistoryConstMeta =>
       const TaskConstMeta(
-        debugName: 'export_play_history',
-        argNames: ['indexPath'],
+        debugName: "export_play_history",
+        argNames: ["indexPath"],
       );
 
   @override
@@ -1385,8 +1395,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiColorExtractionExtractColorsFromImageConstMeta =>
       const TaskConstMeta(
-        debugName: 'extract_colors_from_image',
-        argNames: ['imageBytes', 'numColors'],
+        debugName: "extract_colors_from_image",
+        argNames: ["imageBytes", "numColors"],
       );
 
   @override
@@ -1424,8 +1434,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbGetCachedCoverConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_cached_cover',
-        argNames: ['indexPath', 'path', 'width', 'height'],
+        debugName: "get_cached_cover",
+        argNames: ["indexPath", "path", "width", "height"],
       );
 
   @override
@@ -1453,7 +1463,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiInstalledFontGetInstalledFontsConstMeta =>
-      const TaskConstMeta(debugName: 'get_installed_fonts', argNames: []);
+      const TaskConstMeta(debugName: "get_installed_fonts", argNames: []);
 
   @override
   Future<String?> crateApiTagReaderGetLyricFromPath({required String path}) {
@@ -1481,7 +1491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiTagReaderGetLyricFromPathConstMeta =>
-      const TaskConstMeta(debugName: 'get_lyric_from_path', argNames: ['path']);
+      const TaskConstMeta(debugName: "get_lyric_from_path", argNames: ["path"]);
 
   @override
   Future<(Uint8List?, Uint32List)> crateApiTagReaderGetPictureAndColors({
@@ -1519,8 +1529,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderGetPictureAndColorsConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_picture_and_colors',
-        argNames: ['path', 'width', 'height', 'numColors'],
+        debugName: "get_picture_and_colors",
+        argNames: ["path", "width", "height", "numColors"],
       );
 
   @override
@@ -1556,8 +1566,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderGetPictureFromPathConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_picture_from_path',
-        argNames: ['path', 'width', 'height'],
+        debugName: "get_picture_from_path",
+        argNames: ["path", "width", "height"],
       );
 
   @override
@@ -1591,8 +1601,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsGetPlayCountConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_play_count',
-        argNames: ['indexPath', 'path'],
+        debugName: "get_play_count",
+        argNames: ["indexPath", "path"],
       );
 
   @override
@@ -1626,8 +1636,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsGetPlayHistoryStatsConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_play_history_stats',
-        argNames: ['indexPath', 'since'],
+        debugName: "get_play_history_stats",
+        argNames: ["indexPath", "since"],
       );
 
   @override
@@ -1661,8 +1671,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsGetTopPlayedConstMeta =>
       const TaskConstMeta(
-        debugName: 'get_top_played',
-        argNames: ['indexPath', 'limit'],
+        debugName: "get_top_played",
+        argNames: ["indexPath", "limit"],
       );
 
   @override
@@ -1698,8 +1708,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsImportPlayCountsConstMeta =>
       const TaskConstMeta(
-        debugName: 'import_play_counts',
-        argNames: ['indexPath', 'entries', 'overwrite'],
+        debugName: "import_play_counts",
+        argNames: ["indexPath", "entries", "overwrite"],
       );
 
   @override
@@ -1735,8 +1745,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsImportPlayHistoryConstMeta =>
       const TaskConstMeta(
-        debugName: 'import_play_history',
-        argNames: ['indexPath', 'entries', 'overwrite'],
+        debugName: "import_play_history",
+        argNames: ["indexPath", "entries", "overwrite"],
       );
 
   @override
@@ -1770,8 +1780,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbPlayCountsIncrementPlayCountConstMeta =>
       const TaskConstMeta(
-        debugName: 'increment_play_count',
-        argNames: ['indexPath', 'path'],
+        debugName: "increment_play_count",
+        argNames: ["indexPath", "path"],
       );
 
   @override
@@ -1804,7 +1814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiLoggerInitRustLoggerConstMeta =>
-      const TaskConstMeta(debugName: 'init_rust_logger', argNames: ['sink']);
+      const TaskConstMeta(debugName: "init_rust_logger", argNames: ["sink"]);
 
   @override
   Stream<String> crateApiSmartTransitionInitSmartTransitionEvents({
@@ -1841,8 +1851,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionInitSmartTransitionEventsConstMeta =>
       const TaskConstMeta(
-        debugName: 'init_smart_transition_events',
-        argNames: ['bassDir', 'sink'],
+        debugName: "init_smart_transition_events",
+        argNames: ["bassDir", "sink"],
       );
 
   @override
@@ -1871,7 +1881,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiUtilsLaunchInBrowserConstMeta =>
-      const TaskConstMeta(debugName: 'launch_in_browser', argNames: ['uri']);
+      const TaskConstMeta(debugName: "launch_in_browser", argNames: ["uri"]);
 
   @override
   Future<void> crateApiLibraryDbMigrateIndexJsonToSqlite({
@@ -1902,8 +1912,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbMigrateIndexJsonToSqliteConstMeta =>
       const TaskConstMeta(
-        debugName: 'migrate_index_json_to_sqlite',
-        argNames: ['indexPath'],
+        debugName: "migrate_index_json_to_sqlite",
+        argNames: ["indexPath"],
       );
 
   @override
@@ -1932,8 +1942,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionNativeSmartTransitionSnapshotJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'native_smart_transition_snapshot_json',
-        argNames: ['transitionId'],
+        debugName: "native_smart_transition_snapshot_json",
+        argNames: ["transitionId"],
       );
 
   @override
@@ -1962,7 +1972,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiNeNeLyricConstMeta =>
-      const TaskConstMeta(debugName: 'ne_lyric', argNames: ['songId']);
+      const TaskConstMeta(debugName: "ne_lyric", argNames: ["songId"]);
 
   @override
   Future<List<Map<String, String>>> crateApiNeNeSearch({
@@ -1994,8 +2004,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiNeNeSearchConstMeta => const TaskConstMeta(
-    debugName: 'ne_search',
-    argNames: ['keyword', 'limit'],
+    debugName: "ne_search",
+    argNames: ["keyword", "limit"],
   );
 
   @override
@@ -2023,7 +2033,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiUtilsPickSingleFolderConstMeta =>
-      const TaskConstMeta(debugName: 'pick_single_folder', argNames: []);
+      const TaskConstMeta(debugName: "pick_single_folder", argNames: []);
 
   @override
   Future<String> crateApiSmartSortPlanSmartSortJson({
@@ -2074,15 +2084,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmartSortPlanSmartSortJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'plan_smart_sort_json',
+        debugName: "plan_smart_sort_json",
         argNames: [
-          'payloadJson',
-          'climaxPosition',
-          'contrast',
-          'takeCount',
-          'smoothness',
-          'outroStyle',
-          'taste',
+          "payloadJson",
+          "climaxPosition",
+          "contrast",
+          "takeCount",
+          "smoothness",
+          "outroStyle",
+          "taste",
         ],
       );
 
@@ -2141,17 +2151,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSmartTransitionPlanSmartTransitionJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'plan_smart_transition_json',
+        debugName: "plan_smart_transition_json",
         argNames: [
-          'outgoingProfileJson',
-          'incomingProfileJson',
-          'isGaplessCandidate',
-          'isSameAlbum',
-          'userSpeed',
-          'pitch',
-          'tempoAtCueAvailable',
-          'outgoingReplayGainDb',
-          'incomingReplayGainDb',
+          "outgoingProfileJson",
+          "incomingProfileJson",
+          "isGaplessCandidate",
+          "isSameAlbum",
+          "userSpeed",
+          "pitch",
+          "tempoAtCueAvailable",
+          "outgoingReplayGainDb",
+          "incomingReplayGainDb",
         ],
       );
 
@@ -2184,8 +2194,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderReadAudioExtraMetadataConstMeta =>
       const TaskConstMeta(
-        debugName: 'read_audio_extra_metadata',
-        argNames: ['path'],
+        debugName: "read_audio_extra_metadata",
+        argNames: ["path"],
+      );
+
+  @override
+  Future<List<IndexAudio>> crateApiLibraryDbReadHiddenAudios({
+    required String indexPath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(indexPath, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 52,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_index_audio,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLibraryDbReadHiddenAudiosConstMeta,
+        argValues: [indexPath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibraryDbReadHiddenAudiosConstMeta =>
+      const TaskConstMeta(
+        debugName: "read_hidden_audios",
+        argNames: ["indexPath"],
       );
 
   @override
@@ -2200,7 +2243,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 53,
             port: port_,
           );
         },
@@ -2217,8 +2260,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLibraryDbReadIndexFromSqliteConstMeta =>
       const TaskConstMeta(
-        debugName: 'read_index_from_sqlite',
-        argNames: ['indexPath'],
+        debugName: "read_index_from_sqlite",
+        argNames: ["indexPath"],
+      );
+
+  @override
+  Future<void> crateApiLibraryDbSetAudiosHidden({
+    required String indexPath,
+    required List<String> paths,
+    required bool hidden,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(indexPath, serializer);
+          sse_encode_list_String(paths, serializer);
+          sse_encode_bool(hidden, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 54,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLibraryDbSetAudiosHiddenConstMeta,
+        argValues: [indexPath, paths, hidden],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibraryDbSetAudiosHiddenConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_audios_hidden",
+        argNames: ["indexPath", "paths", "hidden"],
       );
 
   @override
@@ -2231,7 +2311,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 55,
             port: port_,
           );
         },
@@ -2247,7 +2327,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiUtilsShowInExplorerConstMeta =>
-      const TaskConstMeta(debugName: 'show_in_explorer', argNames: ['path']);
+      const TaskConstMeta(debugName: "show_in_explorer", argNames: ["path"]);
 
   @override
   String crateApiSmartTransitionSmartTransitionAnalysisConfigJson() {
@@ -2255,7 +2335,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2272,7 +2352,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionSmartTransitionAnalysisConfigJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'smart_transition_analysis_config_json',
+        debugName: "smart_transition_analysis_config_json",
         argNames: [],
       );
 
@@ -2285,7 +2365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(bassDir, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2302,8 +2382,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionSmartTransitionCapabilitiesJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'smart_transition_capabilities_json',
-        argNames: ['bassDir'],
+        debugName: "smart_transition_capabilities_json",
+        argNames: ["bassDir"],
       );
 
   @override
@@ -2312,7 +2392,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2329,7 +2409,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiSmartTransitionSmartTransitionDiagnosticsJsonConstMeta =>
       const TaskConstMeta(
-        debugName: 'smart_transition_diagnostics_json',
+        debugName: "smart_transition_diagnostics_json",
         argNames: [],
       );
 
@@ -2343,7 +2423,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 59,
             port: port_,
           );
         },
@@ -2362,7 +2442,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta
   get kCrateApiTagReaderSymphoniaSymphoniaTagCollectionDefaultConstMeta =>
       const TaskConstMeta(
-        debugName: 'symphonia_tag_collection_default',
+        debugName: "symphonia_tag_collection_default",
         argNames: [],
       );
 
@@ -2375,7 +2455,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2391,7 +2471,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSystemThemeSystemThemeDefaultConstMeta =>
-      const TaskConstMeta(debugName: 'system_theme_default', argNames: []);
+      const TaskConstMeta(debugName: "system_theme_default", argNames: []);
 
   @override
   SystemTheme crateApiSystemThemeSystemThemeGetSystemTheme() {
@@ -2399,7 +2479,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_system_theme,
@@ -2414,7 +2494,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSystemThemeSystemThemeGetSystemThemeConstMeta =>
       const TaskConstMeta(
-        debugName: 'system_theme_get_system_theme',
+        debugName: "system_theme_get_system_theme",
         argNames: [],
       );
 
@@ -2424,7 +2504,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2438,7 +2518,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSystemVolumeSystemVolumeDisposeConstMeta =>
-      const TaskConstMeta(debugName: 'system_volume_dispose', argNames: []);
+      const TaskConstMeta(debugName: "system_volume_dispose", argNames: []);
 
   @override
   double crateApiSystemVolumeSystemVolumeGet() {
@@ -2446,7 +2526,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -2460,7 +2540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSystemVolumeSystemVolumeGetConstMeta =>
-      const TaskConstMeta(debugName: 'system_volume_get', argNames: []);
+      const TaskConstMeta(debugName: "system_volume_get", argNames: []);
 
   @override
   Stream<double> crateApiSystemVolumeSystemVolumeInit() {
@@ -2470,7 +2550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_f_64_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -2485,7 +2565,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSystemVolumeSystemVolumeInitConstMeta =>
-      const TaskConstMeta(debugName: 'system_volume_init', argNames: ['sink']);
+      const TaskConstMeta(debugName: "system_volume_init", argNames: ["sink"]);
 
   @override
   void crateApiSystemVolumeSystemVolumeSet({required double val}) {
@@ -2494,7 +2574,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(val, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2508,7 +2588,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiSystemVolumeSystemVolumeSetConstMeta =>
-      const TaskConstMeta(debugName: 'system_volume_set', argNames: ['val']);
+      const TaskConstMeta(debugName: "system_volume_set", argNames: ["val"]);
 
   @override
   Stream<IndexActionState> crateApiTagReaderUpdateIndex({
@@ -2527,7 +2607,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 64,
+              funcId: 66,
               port: port_,
             );
           },
@@ -2546,8 +2626,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderUpdateIndexConstMeta =>
       const TaskConstMeta(
-        debugName: 'update_index',
-        argNames: ['indexPath', 'forceMetadataCheck', 'sink'],
+        debugName: "update_index",
+        argNames: ["indexPath", "forceMetadataCheck", "sink"],
       );
 
   @override
@@ -2564,7 +2644,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 67,
             port: port_,
           );
         },
@@ -2581,8 +2661,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderWriteAudioCoverConstMeta =>
       const TaskConstMeta(
-        debugName: 'write_audio_cover',
-        argNames: ['path', 'bytes'],
+        debugName: "write_audio_cover",
+        argNames: ["path", "bytes"],
       );
 
   @override
@@ -2601,7 +2681,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 68,
             port: port_,
           );
         },
@@ -2618,8 +2698,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderWriteAudioTagsConstMeta =>
       const TaskConstMeta(
-        debugName: 'write_audio_tags',
-        argNames: ['path', 'payload', 'onlyChanged'],
+        debugName: "write_audio_tags",
+        argNames: ["path", "payload", "onlyChanged"],
       );
 
   @override
@@ -2636,7 +2716,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 67,
+            funcId: 69,
             port: port_,
           );
         },
@@ -2653,8 +2733,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTagReaderWriteLyricToPathConstMeta =>
       const TaskConstMeta(
-        debugName: 'write_lyric_to_path',
-        argNames: ['path', 'lyric'],
+        debugName: "write_lyric_to_path",
+        argNames: ["path", "lyric"],
       );
 
   RustArcIncrementStrongCountFnType
@@ -2905,11 +2985,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   IndexActionState dco_decode_index_action_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return IndexActionState(
       progress: dco_decode_f_64(arr[0]),
       message: dco_decode_String(arr[1]),
+      phase: dco_decode_index_phase(arr[2]),
+      unreadableTotal: dco_decode_u_64(arr[3]),
     );
   }
 
@@ -2949,6 +3031,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       latest: dco_decode_u_64(arr[2]),
       audios: dco_decode_list_index_audio(arr[3]),
     );
+  }
+
+  @protected
+  IndexPhase dco_decode_index_phase(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return IndexPhase.values[raw as int];
   }
 
   @protected
@@ -3613,7 +3701,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_progress = sse_decode_f_64(deserializer);
     var var_message = sse_decode_String(deserializer);
-    return IndexActionState(progress: var_progress, message: var_message);
+    var var_phase = sse_decode_index_phase(deserializer);
+    var var_unreadableTotal = sse_decode_u_64(deserializer);
+    return IndexActionState(
+      progress: var_progress,
+      message: var_message,
+      phase: var_phase,
+      unreadableTotal: var_unreadableTotal,
+    );
   }
 
   @protected
@@ -3664,6 +3759,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       latest: var_latest,
       audios: var_audios,
     );
+  }
+
+  @protected
+  IndexPhase sse_decode_index_phase(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return IndexPhase.values[inner];
   }
 
   @protected
@@ -4524,6 +4626,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self.progress, serializer);
     sse_encode_String(self.message, serializer);
+    sse_encode_index_phase(self.phase, serializer);
+    sse_encode_u_64(self.unreadableTotal, serializer);
   }
 
   @protected
@@ -4552,6 +4656,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.modified, serializer);
     sse_encode_u_64(self.latest, serializer);
     sse_encode_list_index_audio(self.audios, serializer);
+  }
+
+  @protected
+  void sse_encode_index_phase(IndexPhase self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

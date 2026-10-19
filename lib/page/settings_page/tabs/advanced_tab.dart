@@ -31,6 +31,8 @@ class AdvancedTabContent extends StatelessWidget {
           groupId: 'advanced-custom',
         ),
         SizedBox(height: 8.0),
+        _HiddenSongsGroupEntry(),
+        SizedBox(height: 8.0),
         _AdvancedGroupEntry(
           icon: Symbols.text_fields,
           title: '字体',
@@ -69,6 +71,21 @@ class _AdvancedGroupEntry extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       onTap: () => context.push('${app_paths.SETTINGS_GROUP_PAGE}/$groupId'),
+    );
+  }
+}
+
+/// 「隐藏歌曲」直接进入管理页，不经过设置分组页。
+class _HiddenSongsGroupEntry extends StatelessWidget {
+  const _HiddenSongsGroupEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsGroupEntry(
+      icon: Symbols.visibility_off,
+      title: '隐藏歌曲',
+      subtitle: '从曲库列表隐藏乐曲并可恢复',
+      onTap: () => context.push(app_paths.HIDDEN_SONGS_PAGE),
     );
   }
 }

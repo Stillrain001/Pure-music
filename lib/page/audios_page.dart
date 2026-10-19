@@ -164,6 +164,7 @@ class _AudiosPageState extends State<AudiosPage> {
                 playlist: contentList,
                 focus: item == widget.locateTo,
                 multiSelectController: _multiSelectController,
+                allowHide: true,
               ),
           enableShufflePlay: hasSongs,
           enableSortMethod: canSortSongs,
@@ -173,6 +174,7 @@ class _AudiosPageState extends State<AudiosPage> {
           locateTo: widget.locateTo,
           multiSelectController: _multiSelectController,
           multiSelectViewActions: [
+            HideSelectedSongs(multiSelectController: _multiSelectController),
             AddAllToPlaylist(multiSelectController: _multiSelectController),
             MultiSelectSelectOrClearAll(
               multiSelectController: _multiSelectController,

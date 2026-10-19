@@ -116,22 +116,22 @@ Audio _audioFromIndex(library_db.IndexAudio audio, _AudioLoadPool pool) =>
 
 Audio _audioFromMap(Map<String, dynamic> map, _AudioLoadPool pool) =>
     Audio._fromLoaded(
-  map['title'] ?? '',
-  map['artist'] ?? '',
-  map['album'] ?? '',
-  map['album_artist'],
-  map['track'] ?? 0,
-  map['duration'] ?? 0,
-  map['bitrate'],
-  map['sample_rate'],
-  map['path'] ?? '',
-  map['modified'] ?? 0,
-  map['created'] ?? 0,
-  map['by'],
-  pool,
-  disc: _optionalInt(map['disc']),
-  playCount: map['play_count'] ?? 0,
-);
+      map['title'] ?? '',
+      map['artist'] ?? '',
+      map['album'] ?? '',
+      map['album_artist'],
+      map['track'] ?? 0,
+      map['duration'] ?? 0,
+      map['bitrate'],
+      map['sample_rate'],
+      map['path'] ?? '',
+      map['modified'] ?? 0,
+      map['created'] ?? 0,
+      map['by'],
+      pool,
+      disc: _optionalInt(map['disc']),
+      playCount: map['play_count'] ?? 0,
+    );
 
 String _rssMegabytes(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
 
@@ -558,6 +558,14 @@ class AudioLibrary {
   ///     "version": 110
   /// }
   /// ```
+  /// 把 Rust 读出的索引条目转成内存 Audio 对象（隐藏曲目列表用，不带页码索引）。
+  static List<Audio> audioFromIndexList(List<library_db.IndexAudio> items) {
+    final pool = _AudioLoadPool();
+    final result = items.map((item) => _audioFromIndex(item, pool)).toList();
+    pool.release();
+    return result;
+  }
+
   static Future<void> initFromIndex() async {
     final stopwatch = Stopwatch()..start();
     try {
@@ -904,7 +912,8 @@ class AudioLibrary {
     final prepared = _preparedAudiosPage;
     final preference = AppPreference.instance.audiosPagePref;
     if (prepared == null ||
-        prepared.sortMethod != preference.sortMethod.clamp(0, audiosPageSortMethodMax).toInt() ||
+        prepared.sortMethod !=
+            preference.sortMethod.clamp(0, audiosPageSortMethodMax).toInt() ||
         prepared.sortOrder != preference.sortOrder) {
       return null;
     }
@@ -977,7 +986,8 @@ class AudioLibrary {
     final preparedAudios = await _materializeSortedItems(source, indexes);
     final preference = AppPreference.instance.audiosPagePref;
     if (generation != _collectionGeneration ||
-        preference.sortMethod.clamp(0, audiosPageSortMethodMax).toInt() != sortMethod ||
+        preference.sortMethod.clamp(0, audiosPageSortMethodMax).toInt() !=
+            sortMethod ||
         preference.sortOrder != sortOrder) {
       return false;
     }
@@ -1048,7 +1058,9 @@ class AudioLibrary {
     int generation,
   ) async {
     final audioPreference = AppPreference.instance.audiosPagePref;
-    if (!_cachedPageMatches(cached, audioPreference, audiosPageSortMethodMax)) return false;
+    if (!_cachedPageMatches(cached, audioPreference, audiosPageSortMethodMax)) {
+      return false;
+    }
     return _installPreparedAudioOrder(
       source: audioCollection,
       indexes: cached.indexes,
@@ -1298,7 +1310,9 @@ class AudioLibrary {
   Future<void> _preparePreferredAudioPageSnapshot(int generation) async {
     final audios = List<Audio>.from(audioCollection);
     final preference = AppPreference.instance.audiosPagePref;
-    final sortMethod = preference.sortMethod.clamp(0, audiosPageSortMethodMax).toInt();
+    final sortMethod = preference.sortMethod
+        .clamp(0, audiosPageSortMethodMax)
+        .toInt();
     final sortOrder = preference.sortOrder;
     final descending = sortOrder == SortOrder.decending;
     final naturalValues = switch (sortMethod) {
@@ -1734,7 +1748,9 @@ class AudioLibrary {
     audio.track = track;
     audio.disc = disc;
     audio.splitedArtists = Audio._splitArtistNames(audio.artist);
-    audio.splitedAlbumArtists = Audio._splitArtistNames(audio.albumArtist ?? '');
+    audio.splitedAlbumArtists = Audio._splitArtistNames(
+      audio.albumArtist ?? '',
+    );
     audio._invalidateSearchCache();
     _buildCollections();
     libraryVersion.value++;
@@ -2487,11 +2503,11 @@ class AudioFolder {
 
   factory AudioFolder.fromMap(Map<String, dynamic> map, List<Audio> audios) =>
       AudioFolder(
-    audios,
-    map['path'] ?? '',
-    map['modified'] ?? 0,
-    map['latest'] ?? 0,
-  );
+        audios,
+        map['path'] ?? '',
+        map['modified'] ?? 0,
+        map['latest'] ?? 0,
+      );
 
   @override
   String toString() {

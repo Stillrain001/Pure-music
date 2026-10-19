@@ -26,6 +26,7 @@ const String STATS_ALBUM_DETAIL_PAGE = '/stats/album';
 const String SETTINGS_PAGE = '/settings';
 const String SETTINGS_ISSUE_PAGE = '/settings/issue';
 const String SETTINGS_GROUP_PAGE = '/settings/group';
+const String HIDDEN_SONGS_PAGE = '/settings/hidden-songs';
 
 const String WELCOMING_PAGE = '/welcoming';
 

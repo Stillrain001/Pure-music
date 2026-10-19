@@ -53,6 +53,7 @@ use dsf::DsfAudioProperties;
 
 pub mod index_state;
 pub use index_state::IndexActionState;
+pub use index_state::IndexPhase;
 
 pub mod symphonia;
 use symphonia::read_symphonia_metadata;
@@ -1698,6 +1699,7 @@ pub fn build_index_from_folders_recursively(
     let index_dir = PathBuf::from(&index_path);
     let mut audio_folders: Vec<AudioFolder> = vec![];
     let mut scanned: u64 = 0;
+    let mut unreadable_total: u64 = 0;
     let mut seen: HashSet<String> = HashSet::new();
     let mut total: u64 = 0;
     let mut by_folder: HashMap<String, Vec<PathBuf>> = HashMap::new();
@@ -1713,6 +1715,8 @@ pub fn build_index_from_folders_recursively(
                 scanned as f64 / total as f64
             },
             message: String::from("正在扫描 ") + dir_path,
+            phase: IndexPhase::Scanning,
+            unreadable_total,
         });
 
         let scanned_before = scanned;
@@ -1726,11 +1730,14 @@ pub fn build_index_from_folders_recursively(
                         completed as f64 / total as f64
                     },
                     message: String::new(),
+                    phase: IndexPhase::Scanning,
+                    unreadable_total,
                 });
             }
         });
         let failed = read_results.iter().filter(|audio| audio.is_none()).count();
         if failed > 0 {
+            unreadable_total += failed as u64;
             log::warn!(
                 target: "tag",
                 "skipped {} unreadable files while indexing {}",
@@ -1766,7 +1773,21 @@ pub fn build_index_from_folders_recursively(
         "folders": audio_folders_json,
     });
 
+    let _ = sink.add(IndexActionState {
+        progress: 1.0,
+        message: String::from("正在保存索引"),
+        phase: IndexPhase::Saving,
+        unreadable_total,
+    });
+
     library_db::write_index_snapshot(&index_dir, &json_value).map_err(io::Error::other)?;
+
+    let _ = sink.add(IndexActionState {
+        progress: 1.0,
+        message: String::from("曲库扫描完成"),
+        phase: IndexPhase::Complete,
+        unreadable_total,
+    });
 
     Ok(())
 }
@@ -1787,6 +1808,8 @@ fn _update_index_below_1_1_0(
         let _ = sink.add(IndexActionState {
             progress: audio_folders_json.len() as f64 / folders.len() as f64,
             message: String::from("正在扫描 ") + path,
+            phase: IndexPhase::Scanning,
+            unreadable_total: 0,
         });
         let folder_path = Path::new(path);
         match AudioFolder::read_from_folder(folder_path) {
@@ -1797,6 +1820,8 @@ fn _update_index_below_1_1_0(
         let _ = sink.add(IndexActionState {
             progress: audio_folders_json.len() as f64 / folders.len() as f64,
             message: String::new(),
+            phase: IndexPhase::Scanning,
+            unreadable_total: 0,
         });
     }
     let index_dir = index_path
@@ -2484,6 +2509,8 @@ pub fn update_index(
                 let _ = sink.add(IndexActionState {
                     progress: 1.0,
                     message: String::from("音乐库更新完成"),
+                    phase: IndexPhase::Complete,
+                    unreadable_total: 0,
                 });
                 return Ok(());
             }
@@ -2588,6 +2615,8 @@ pub fn update_index(
                 checked as f64 / total as f64
             },
             message: String::from("正在更新 ") + &folder_path,
+            phase: IndexPhase::Scanning,
+            unreadable_total: 0,
         });
 
         if new_folder_modified != old_folder_modified {
@@ -2667,6 +2696,8 @@ pub fn update_index(
                         completed as f64 / total as f64
                     },
                     message: String::new(),
+                    phase: IndexPhase::Scanning,
+                    unreadable_total: 0,
                 });
             }
         });
@@ -2691,6 +2722,8 @@ pub fn update_index(
                     checked as f64 / total as f64
                 },
                 message: String::new(),
+                phase: IndexPhase::Scanning,
+                unreadable_total: 0,
             });
         }
 
@@ -2716,6 +2749,8 @@ pub fn update_index(
                     checked as f64 / total as f64
                 },
                 message: format!("正在检查新增文件夹 {}", root_path.to_string_lossy()),
+                phase: IndexPhase::Scanning,
+                unreadable_total: 0,
             });
             discover_new_audio_folders(
                 &root_path,
@@ -2737,6 +2772,12 @@ pub fn update_index(
     }
 
     if index_changed || !sqlite_snapshot_current {
+        let _ = sink.add(IndexActionState {
+            progress: 1.0,
+            message: String::from("正在保存索引"),
+            phase: IndexPhase::Saving,
+            unreadable_total: 0,
+        });
         library_db::write_index_snapshot(&index_dir, &index)?;
     }
     log::info!(
@@ -2752,6 +2793,8 @@ pub fn update_index(
     let _ = sink.add(IndexActionState {
         progress: 1.0,
         message: String::from("音乐库更新完成"),
+        phase: IndexPhase::Complete,
+        unreadable_total: 0,
     });
 
     Ok(())

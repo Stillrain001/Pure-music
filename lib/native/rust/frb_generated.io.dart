@@ -158,6 +158,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IndexFolder dco_decode_index_folder(dynamic raw);
 
   @protected
+  IndexPhase dco_decode_index_phase(dynamic raw);
+
+  @protected
   InstalledFont dco_decode_installed_font(dynamic raw);
 
   @protected
@@ -418,6 +421,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IndexFolder sse_decode_index_folder(SseDeserializer deserializer);
+
+  @protected
+  IndexPhase sse_decode_index_phase(SseDeserializer deserializer);
 
   @protected
   InstalledFont sse_decode_installed_font(SseDeserializer deserializer);
@@ -743,6 +749,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_index_folder(IndexFolder self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_index_phase(IndexPhase self, SseSerializer serializer);
 
   @protected
   void sse_encode_installed_font(InstalledFont self, SseSerializer serializer);

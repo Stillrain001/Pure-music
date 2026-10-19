@@ -1,3 +1,6 @@
+import 'package:pure_music/component/index_progress_view.dart';
+import 'dart:async';
+
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/list_action_state.dart';
 import 'package:pure_music/core/page_sort.dart';
@@ -113,8 +116,13 @@ class _FoldersPageState extends State<FoldersPage> {
       final sourceBefore = await LibraryPageOrderCache.sourceSignature(
         indexPath,
       );
-      final stream = updateIndex(indexPath: dir.path, forceMetadataCheck: true);
-      await for (final _ in stream) {}
+      if (!mounted) return;
+      // 扫描进度走统一对话框：阶段文案 + 不可读计数 + 失败重试。
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const _RefreshIndexDialog(),
+      );
       final sourceAfter = await LibraryPageOrderCache.sourceSignature(
         indexPath,
       );
@@ -178,9 +186,7 @@ class _FoldersPageState extends State<FoldersPage> {
             onPressed: _refreshIndex,
             icon: const Icon(Symbols.refresh, size: 18),
             label: const Text('刷新'),
-            style: const ButtonStyle(
-              fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-            ),
+            style: AppButton.pageAction,
           ),
         const SizedBox(width: 8),
         FilledButton.icon(
@@ -190,9 +196,7 @@ class _FoldersPageState extends State<FoldersPage> {
           },
           icon: const Icon(Symbols.folder),
           label: const Text('文件夹管理'),
-          style: const ButtonStyle(
-            fixedSize: WidgetStatePropertyAll(Size.fromHeight(40)),
-          ),
+          style: AppButton.pageAction,
         ),
       ],
     );
@@ -282,7 +286,6 @@ class AudioFolderTile extends StatelessWidget {
     );
   }
 
-
   Widget _folderTile(
     BuildContext context,
     MenuController controller,
@@ -298,10 +301,8 @@ class AudioFolderTile extends StatelessWidget {
               AppSettings.instance.enableInteractiveSurfaceMotion,
           child: InkWell(
             borderRadius: AppRadius.smCircular,
-            onTap: () => context.push(
-              app_paths.FOLDER_DETAIL_PAGE,
-              extra: audioFolder,
-            ),
+            onTap: () =>
+                context.push(app_paths.FOLDER_DETAIL_PAGE, extra: audioFolder),
             onSecondaryTapDown: (details) {
               controller.open(position: details.localPosition);
             },
@@ -518,6 +519,69 @@ class _FolderAliasDialogState extends State<_FolderAliasDialog> {
           child: const Text('确认'),
         ),
       ],
+    );
+  }
+}
+
+/// 手动刷新曲库时的进度对话框：阶段文案 + 不可读计数 + 失败重试。
+class _RefreshIndexDialog extends StatefulWidget {
+  const _RefreshIndexDialog();
+
+  @override
+  State<_RefreshIndexDialog> createState() => _RefreshIndexDialogState();
+}
+
+class _RefreshIndexDialogState extends State<_RefreshIndexDialog> {
+  StreamSubscription<IndexActionState>? _subscription;
+  IndexActionState? _latest;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_start());
+  }
+
+  Future<void> _start() async {
+    await _subscription?.cancel();
+    if (!mounted) return;
+    setState(() => _errorMessage = null);
+    final dir = await getAppDataDir();
+    _subscription = updateIndex(indexPath: dir.path, forceMetadataCheck: true)
+        .listen(
+          (action) {
+            if (mounted) setState(() => _latest = action);
+          },
+          onError: (Object error) {
+            if (mounted) {
+              setState(() => _errorMessage = '曲库刷新失败，请查看日志');
+            }
+          },
+          onDone: () {
+            if (mounted) Navigator.of(context).pop();
+          },
+          cancelOnError: true,
+        );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      contentPadding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+      content: SizedBox(
+        width: 360,
+        child: IndexProgressView(
+          state: _latest,
+          errorMessage: _errorMessage,
+          onRetry: _errorMessage == null ? null : () => unawaited(_start()),
+        ),
+      ),
     );
   }
 }

@@ -13,10 +13,25 @@ class IndexActionState {
   /// describe action state
   final String message;
 
-  const IndexActionState({required this.progress, required this.message});
+  /// 当前所处阶段
+  final IndexPhase phase;
+
+  /// 本次扫描累计无法读取而被跳过的文件数
+  final BigInt unreadableTotal;
+
+  const IndexActionState({
+    required this.progress,
+    required this.message,
+    required this.phase,
+    required this.unreadableTotal,
+  });
 
   @override
-  int get hashCode => progress.hashCode ^ message.hashCode;
+  int get hashCode =>
+      progress.hashCode ^
+      message.hashCode ^
+      phase.hashCode ^
+      unreadableTotal.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -24,5 +39,22 @@ class IndexActionState {
       other is IndexActionState &&
           runtimeType == other.runtimeType &&
           progress == other.progress &&
-          message == other.message;
+          message == other.message &&
+          phase == other.phase &&
+          unreadableTotal == other.unreadableTotal;
+}
+
+/// 曲库索引构建/更新所处的阶段。
+enum IndexPhase {
+  /// 尚未开始枚举文件。
+  preparing,
+
+  /// 正在读取标签与扫描文件夹。
+  scanning,
+
+  /// 正在把索引写回磁盘。
+  saving,
+
+  /// 全部结束。
+  complete,
 }

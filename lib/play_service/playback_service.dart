@@ -1538,6 +1538,52 @@ class PlaybackService extends ChangeNotifier {
     _rebuildGaplessPreparation();
   }
 
+  /// 曲库隐藏操作后，把命中曲目从播放队列移除。
+  /// 正在播放的曲子被隐藏时，播移除后的当前位置（原顺序的下一首）；
+  /// 队列清空则停止播放。索引用路径比对，不依赖曲库重建后的对象引用。
+  void removeHiddenFromQueue(Iterable<String> paths) {
+    final hiddenPaths = Set<String>.of(paths);
+    if (hiddenPaths.isEmpty || _playlist.value.isEmpty) return;
+    final items = _playlist.value;
+    final currentIndex = _playlistIndex ?? 0;
+    final current = currentIndex < items.length ? items[currentIndex] : null;
+    final kept = items.where((a) => !hiddenPaths.contains(a.path)).toList();
+    final removedBefore = currentIndex < items.length
+        ? items
+              .take(currentIndex)
+              .where((a) => hiddenPaths.contains(a.path))
+              .length
+        : 0;
+    _playlistBackup = List<Audio>.unmodifiable(
+      _playlistBackup.where((a) => !hiddenPaths.contains(a.path)),
+    );
+    if (kept.isEmpty) {
+      _setPlaylist(const <Audio>[]);
+      _playlistIndex = null;
+      _persistCurrentSession();
+      pause();
+      return;
+    }
+    _setPlaylist(kept);
+    if (current != null && hiddenPaths.contains(current.path)) {
+      final targetIndex = (currentIndex - removedBefore).clamp(
+        0,
+        kept.length - 1,
+      );
+      // 正在播的被隐藏才切到下一首；暂停/停止中只校正索引，不擅自起播。
+      if (playerState == PlayerState.playing) {
+        playIndexOfPlaylist(targetIndex);
+        return;
+      }
+      _playlistIndex = targetIndex;
+      _persistCurrentSession();
+      return;
+    }
+    _playlistIndex = (currentIndex - removedBefore).clamp(0, kept.length - 1);
+    _persistCurrentSession();
+    _rebuildGaplessPreparation();
+  }
+
   void reorderPlaylist(int oldIndex, int newIndex) {
     log.playback.debug(
       'legacy',

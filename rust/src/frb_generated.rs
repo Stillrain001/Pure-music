@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2103948872;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -770142052;
 
 // Section: executor
 
@@ -2096,6 +2096,39 @@ fn wire__crate__api__tag_reader__read_audio_extra_metadata_impl(
         },
     )
 }
+fn wire__crate__api__library_db__read_hidden_audios_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "read_hidden_audios",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_index_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::library_db::read_hidden_audios(api_index_path)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__library_db__read_index_from_sqlite_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2128,6 +2161,45 @@ fn wire__crate__api__library_db__read_index_from_sqlite_impl(
                         Ok(output_ok)
                     })(),
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__library_db__set_audios_hidden_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_audios_hidden",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_index_path = <String>::sse_decode(&mut deserializer);
+            let api_paths = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_hidden = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::library_db::set_audios_hidden(
+                        api_index_path,
+                        api_paths,
+                        api_hidden,
+                    )?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -2866,9 +2938,14 @@ impl SseDecode for crate::api::tag_reader::index_state::IndexActionState {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_progress = <f64>::sse_decode(deserializer);
         let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_phase =
+            <crate::api::tag_reader::index_state::IndexPhase>::sse_decode(deserializer);
+        let mut var_unreadableTotal = <u64>::sse_decode(deserializer);
         return crate::api::tag_reader::index_state::IndexActionState {
             progress: var_progress,
             message: var_message,
+            phase: var_phase,
+            unreadable_total: var_unreadableTotal,
         };
     }
 }
@@ -2921,6 +2998,20 @@ impl SseDecode for crate::api::library_db::IndexFolder {
             modified: var_modified,
             latest: var_latest,
             audios: var_audios,
+        };
+    }
+}
+
+impl SseDecode for crate::api::tag_reader::index_state::IndexPhase {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::tag_reader::index_state::IndexPhase::Preparing,
+            1 => crate::api::tag_reader::index_state::IndexPhase::Scanning,
+            2 => crate::api::tag_reader::index_state::IndexPhase::Saving,
+            3 => crate::api::tag_reader::index_state::IndexPhase::Complete,
+            _ => unreachable!("Invalid variant for IndexPhase: {}", inner),
         };
     }
 }
@@ -3708,33 +3799,39 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__library_db__read_index_from_sqlite_impl(
+        52 => {
+            wire__crate__api__library_db__read_hidden_audios_impl(port, ptr, rust_vec_len, data_len)
+        }
+        53 => wire__crate__api__library_db__read_index_from_sqlite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__utils__show_in_explorer_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__tag_reader__symphonia__symphonia_tag_collection_default_impl(
+        54 => {
+            wire__crate__api__library_db__set_audios_hidden_impl(port, ptr, rust_vec_len, data_len)
+        }
+        55 => wire__crate__api__utils__show_in_explorer_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__tag_reader__symphonia__symphonia_tag_collection_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__system_theme__system_theme_default_impl(
+        60 => wire__crate__api__system_theme__system_theme_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__tag_reader__update_index_impl(port, ptr, rust_vec_len, data_len),
-        65 => {
+        66 => wire__crate__api__tag_reader__update_index_impl(port, ptr, rust_vec_len, data_len),
+        67 => {
             wire__crate__api__tag_reader__write_audio_cover_impl(port, ptr, rust_vec_len, data_len)
         }
-        66 => {
+        68 => {
             wire__crate__api__tag_reader__write_audio_tags_impl(port, ptr, rust_vec_len, data_len)
         }
-        67 => wire__crate__api__tag_reader__write_lyric_to_path_impl(
+        69 => wire__crate__api__tag_reader__write_lyric_to_path_impl(
             port,
             ptr,
             rust_vec_len,
@@ -3788,32 +3885,32 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__smart_transition__smart_transition_analysis_config_json_impl(
+        56 => wire__crate__api__smart_transition__smart_transition_analysis_config_json_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__smart_transition__smart_transition_capabilities_json_impl(
+        57 => wire__crate__api__smart_transition__smart_transition_capabilities_json_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__smart_transition__smart_transition_diagnostics_json_impl(
+        58 => wire__crate__api__smart_transition__smart_transition_diagnostics_json_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__system_theme__system_theme_get_system_theme_impl(
+        61 => wire__crate__api__system_theme__system_theme_get_system_theme_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => {
+        62 => {
             wire__crate__api__system_volume__system_volume_dispose_impl(ptr, rust_vec_len, data_len)
         }
-        61 => wire__crate__api__system_volume__system_volume_get_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__system_volume__system_volume_init_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__system_volume__system_volume_set_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__system_volume__system_volume_get_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__system_volume__system_volume_init_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__system_volume__system_volume_set_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3950,6 +4047,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::tag_reader::index_state::Inde
         [
             self.progress.into_into_dart().into_dart(),
             self.message.into_into_dart().into_dart(),
+            self.phase.into_into_dart().into_dart(),
+            self.unreadable_total.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4018,6 +4117,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::library_db::IndexFolder>
     for crate::api::library_db::IndexFolder
 {
     fn into_into_dart(self) -> crate::api::library_db::IndexFolder {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::tag_reader::index_state::IndexPhase {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Preparing => 0.into_dart(),
+            Self::Scanning => 1.into_dart(),
+            Self::Saving => 2.into_dart(),
+            Self::Complete => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::tag_reader::index_state::IndexPhase
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::tag_reader::index_state::IndexPhase>
+    for crate::api::tag_reader::index_state::IndexPhase
+{
+    fn into_into_dart(self) -> crate::api::tag_reader::index_state::IndexPhase {
         self
     }
 }
@@ -4507,6 +4629,8 @@ impl SseEncode for crate::api::tag_reader::index_state::IndexActionState {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <f64>::sse_encode(self.progress, serializer);
         <String>::sse_encode(self.message, serializer);
+        <crate::api::tag_reader::index_state::IndexPhase>::sse_encode(self.phase, serializer);
+        <u64>::sse_encode(self.unreadable_total, serializer);
     }
 }
 
@@ -4537,6 +4661,24 @@ impl SseEncode for crate::api::library_db::IndexFolder {
         <u64>::sse_encode(self.modified, serializer);
         <u64>::sse_encode(self.latest, serializer);
         <Vec<crate::api::library_db::IndexAudio>>::sse_encode(self.audios, serializer);
+    }
+}
+
+impl SseEncode for crate::api::tag_reader::index_state::IndexPhase {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::tag_reader::index_state::IndexPhase::Preparing => 0,
+                crate::api::tag_reader::index_state::IndexPhase::Scanning => 1,
+                crate::api::tag_reader::index_state::IndexPhase::Saving => 2,
+                crate::api::tag_reader::index_state::IndexPhase::Complete => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

@@ -7,6 +7,7 @@ import 'package:pure_music/library/playlist.dart';
 import 'package:pure_music/lyric/lyric_source.dart';
 import 'package:pure_music/native/rust/api/tag_reader.dart';
 import 'package:pure_music/core/utils.dart';
+import 'package:pure_music/component/index_progress_view.dart';
 import 'package:pure_music/core/window_lifecycle.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -179,6 +180,12 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
   @override
   void initState() {
     super.initState();
+    _startUpdate();
+  }
+
+  void _startUpdate() {
+    _subscription?.cancel();
+    setState(() => _errorMessage = null);
     _subscription =
         updateIndex(
           indexPath: widget.indexPath.path,
@@ -220,12 +227,6 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final errorMessage = _errorMessage;
-    if (errorMessage != null) {
-      return Center(
-        child: _InitErrorView(scheme: scheme, message: errorMessage),
-      );
-    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -237,52 +238,12 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
     );
   }
 
-
-  Widget _percentBadge(ColorScheme scheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: Text(
-        '${(_latestAction!.progress.clamp(0.0, 1.0) * 100).round()}%',
-        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.0),
-      ),
-    );
-  }
-
   Widget _progressBody(ColorScheme scheme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        LinearProgressIndicator(
-          value: _latestAction?.progress,
-          backgroundColor: scheme.onSurface.withValues(alpha: 0.1),
-          color: scheme.primary,
-          borderRadius: BorderRadius.circular(2.0),
-          minHeight: 8,
-        ),
-        const SizedBox(height: 16.0),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                _latestAction?.message ?? '正在初始化...',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: scheme.onSurface, fontSize: 14),
-              ),
-            ),
-            if (_latestAction != null) ...[
-              const SizedBox(width: 8.0),
-              _percentBadge(scheme),
-            ],
-          ],
-        ),
-      ],
+    // 阶段文案、失败重试与不可读计数统一走共享扫描视图。
+    return IndexProgressView(
+      state: _latestAction,
+      errorMessage: _errorMessage,
+      onRetry: _errorMessage == null ? null : _startUpdate,
     );
   }
 }

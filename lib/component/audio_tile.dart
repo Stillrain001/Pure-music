@@ -9,6 +9,7 @@ import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/core/design_tokens.dart';
 import 'package:pure_music/core/menu_styles.dart';
 import 'package:pure_music/library/audio_library.dart';
+import 'package:pure_music/library/hidden_songs.dart';
 import 'package:pure_music/page/uni_page.dart';
 import 'package:pure_music/library/playlist.dart';
 import 'package:pure_music/core/paths.dart' as app_paths;
@@ -63,6 +64,8 @@ class AudioTile extends StatefulWidget {
     this.action,
     this.multiSelectController,
     this.onRemoveFromPlaylist,
+    this.allowHide = false,
+    this.allowRestore = false,
   });
 
   static const double defaultLeadingWidth = 32;
@@ -76,6 +79,12 @@ class AudioTile extends StatefulWidget {
   final Widget? action;
   final MultiSelectController<Audio>? multiSelectController;
   final FutureOr<void> Function(Audio audio)? onRemoveFromPlaylist;
+
+  /// 曲库主列表才允许隐藏；歌单、专辑等集合视图保留隐藏曲目。
+  final bool allowHide;
+
+  /// 隐藏歌曲管理页里允许恢复单曲。
+  final bool allowRestore;
 
   @override
   State<AudioTile> createState() => _AudioTileState();
@@ -206,7 +215,50 @@ class _AudioTileState extends State<AudioTile> {
       if (widget.onRemoveFromPlaylist != null)
         _removeFromPlaylistMenuItem(context, audio, scheme, menuItemStyle),
       _detailMenuItem(context, audio, menuItemStyle),
+      if (widget.allowHide) _hideMenuItem(context, audio),
+      if (widget.allowRestore) _restoreMenuItem(context, audio),
     ];
+  }
+
+  Widget _restoreMenuItem(BuildContext context, Audio audio) {
+    return MenuItemButton(
+      style: appMenuItemStyle,
+      onPressed: () => unawaited(_restoreAudio(context, audio)),
+      leadingIcon: const Icon(Symbols.visibility),
+      child: const Text('恢复'),
+    );
+  }
+
+  Future<void> _restoreAudio(BuildContext context, Audio audio) async {
+    await setSongsHidden([audio], hidden: false);
+    if (context.mounted) {
+      showTextOnSnackBar('已恢复');
+    }
+  }
+
+  Widget _hideMenuItem(BuildContext context, Audio audio) {
+    return MenuItemButton(
+      style: appMenuItemStyle,
+      onPressed: () => unawaited(_hideAudio(context, audio)),
+      leadingIcon: const Icon(Symbols.visibility_off),
+      child: const Text('隐藏'),
+    );
+  }
+
+  Future<void> _hideAudio(BuildContext context, Audio audio) async {
+    final confirmed = await showDangerConfirmDialog(
+      context: context,
+      title: '隐藏这首乐曲？',
+      message:
+          '它将从曲库列表、专辑和歌手页中移除，文件不会删除；'
+          '可在设置或文件夹页的「隐藏歌曲」里恢复。',
+      confirmLabel: '隐藏',
+    );
+    if (!confirmed) return;
+    await setSongsHidden([audio], hidden: true);
+    if (context.mounted) {
+      showTextOnSnackBar('已隐藏，可在「隐藏歌曲」中恢复');
+    }
   }
 
   List<Widget> _artistMenuItems(

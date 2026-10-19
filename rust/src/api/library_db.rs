@@ -721,6 +721,10 @@ fn init_schema(conn: &Connection) -> Result<()> {
     if !valid_col {
         conn.execute_batch("ALTER TABLE audios ADD COLUMN valid INTEGER NOT NULL DEFAULT 1;")?;
     }
+    let hidden_col = conn.prepare("SELECT hidden FROM audios LIMIT 1").is_ok();
+    if !hidden_col {
+        conn.execute_batch("ALTER TABLE audios ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;")?;
+    }
     let cover_last_accessed_col = conn
         .prepare("SELECT last_accessed FROM cover_thumbnails LIMIT 1")
         .is_ok();
@@ -1267,8 +1271,8 @@ fn write_index_value_to_sqlite(index_dir: &Path, index: &serde_json::Value) -> R
                 OR folders.latest IS NOT excluded.latest",
         )?;
         let mut audio_stmt = tx.prepare(
-            "INSERT INTO audios(path, folder_path, title, artist, album, album_artist, track, disc, duration, bitrate, sample_rate, modified, created, by, play_count, media_id, metadata_key, file_size, valid)
-             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+            "INSERT INTO audios(path, folder_path, title, artist, album, album_artist, track, disc, duration, bitrate, sample_rate, modified, created, by, play_count, media_id, metadata_key, file_size, valid, hidden)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, 0)
              ON CONFLICT(path) DO UPDATE SET
                folder_path = excluded.folder_path,
                title = excluded.title,
@@ -1453,7 +1457,7 @@ pub fn read_index_from_sqlite(index_path: String) -> Result<Vec<IndexFolder>> {
     {
         let mut stmt = conn.prepare(
             "SELECT folder_path, title, artist, album, album_artist, track, disc, duration, bitrate, sample_rate, path, modified, created, by, play_count
-             FROM audios WHERE valid != 0 ORDER BY folder_path, path",
+             FROM audios WHERE valid != 0 AND hidden = 0 ORDER BY folder_path, path",
         )?;
         let mut rows = stmt.query([])?;
         while let Some(row) = rows.next()? {
@@ -1502,6 +1506,74 @@ pub fn read_index_from_sqlite(index_path: String) -> Result<Vec<IndexFolder>> {
     }
 
     Ok(folders)
+}
+
+/// 批量设置曲库条目的隐藏标记；被隐藏的路径不再出现在正常曲库读取中。
+pub fn set_audios_hidden(index_path: String, paths: Vec<String>, hidden: bool) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let index_dir = PathBuf::from(index_path);
+    let mut conn = open_connection(&index_dir).map_err(|e| e.to_string())?;
+    init_schema(&conn).map_err(|e| e.to_string())?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| e.to_string())?;
+    let mut stmt = tx
+        .prepare("UPDATE audios SET hidden = ?1 WHERE path = ?2")
+        .map_err(|e| e.to_string())?;
+    for path in &paths {
+        stmt.execute(params![hidden as i64, path])
+            .map_err(|e| e.to_string())?;
+    }
+    drop(stmt);
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 读取被隐藏的曲目，平铺返回，按文件夹与路径排序。
+pub fn read_hidden_audios(index_path: String) -> Result<Vec<IndexAudio>, String> {
+    let index_dir = PathBuf::from(index_path);
+    let conn = open_connection(&index_dir).map_err(|e| e.to_string())?;
+    init_schema(&conn).map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT folder_path, title, artist, album, album_artist, track, disc, duration, bitrate, sample_rate, path, modified, created, by, play_count
+             FROM audios WHERE hidden != 0 ORDER BY folder_path, path",
+        )
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let track: Option<i64> = row.get(5).map_err(|e| e.to_string())?;
+        let disc: Option<i64> = row.get(6).map_err(|e| e.to_string())?;
+        let _folder_path: String = row.get(0).map_err(|e| e.to_string())?;
+        result.push(IndexAudio {
+            title: row.get(1).map_err(|e| e.to_string())?,
+            artist: row.get(2).map_err(|e| e.to_string())?,
+            album: row.get(3).map_err(|e| e.to_string())?,
+            album_artist: row.get(4).map_err(|e| e.to_string())?,
+            track: track.unwrap_or(0).max(0) as u32,
+            disc: disc.unwrap_or(0).max(0) as u32,
+            duration: row.get::<_, i64>(7).map_err(|e| e.to_string())?.max(0) as u64,
+            bitrate: row
+                .get::<_, Option<i64>>(8)
+                .map_err(|e| e.to_string())?
+                .map(|v| v.max(0) as u32),
+            sample_rate: row
+                .get::<_, Option<i64>>(9)
+                .map_err(|e| e.to_string())?
+                .map(|v| v.max(0) as u32),
+            path: row.get(10).map_err(|e| e.to_string())?,
+            modified: row.get::<_, i64>(11).map_err(|e| e.to_string())?.max(0) as u64,
+            created: row.get::<_, i64>(12).map_err(|e| e.to_string())?.max(0) as u64,
+            by: row.get(13).map_err(|e| e.to_string())?,
+            play_count: row.get(14).map_err(|e| e.to_string())?,
+        });
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
