@@ -164,20 +164,13 @@ class _ListLocateButtonsState extends State<ListLocateButtons> {
           child: IconButton.filledTonal(
             tooltip: '定位正在播放',
             onPressed: () => widget.onScrollToIndex?.call(targetAt),
-            style: ButtonStyle(
-              fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-              padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-              ),
-            ),
+            style: AppButton.iconSquare,
             icon: const Icon(Symbols.my_location),
           ),
         ),
       ),
     );
   }
-
 
   Widget _fadeScale(double t, bool reduceMotion, Widget? child) {
     return IgnorePointer(
@@ -217,13 +210,7 @@ class _ListLocateButtonsState extends State<ListLocateButtons> {
               child: IconButton.filledTonal(
                 tooltip: '回到顶部',
                 onPressed: () => _smoothScrollTo(0.0),
-                style: ButtonStyle(
-                  fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-                  padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-                  ),
-                ),
+                style: AppButton.iconSquare,
                 icon: const Icon(Symbols.vertical_align_top),
               ),
             ),

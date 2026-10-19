@@ -120,16 +120,32 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
   List<SortMethodDesc<Audio>> _playlistSortMethods() {
     return [
-      _audioTextSort(Symbols.title, '标题', (audio) => audio.title, audioTitleSortValue),
-      _audioTextSort(Symbols.artist, '艺术家', (audio) => audio.artist, audioArtistSortValue),
-      _audioTextSort(Symbols.album, '专辑', (audio) => audio.album, audioAlbumSortValue),
+      _audioTextSort(
+        Symbols.title,
+        '标题',
+        (audio) => audio.title,
+        audioTitleSortValue,
+      ),
+      _audioTextSort(
+        Symbols.artist,
+        '艺术家',
+        (audio) => audio.artist,
+        audioArtistSortValue,
+      ),
+      _audioTextSort(
+        Symbols.album,
+        '专辑',
+        (audio) => audio.album,
+        audioAlbumSortValue,
+      ),
       SortMethodDesc<Audio>(
         icon: Symbols.add_circle,
         name: '添加时间',
         method: (list, order) {
           sortByIntegerThenNatural(
             list,
-            valueOf: (audio) => widget.playlist.addedAt(audio.path).millisecondsSinceEpoch,
+            valueOf: (audio) =>
+                widget.playlist.addedAt(audio.path).millisecondsSinceEpoch,
             tieBreakOf: audioTitleSortValue,
             descending: order == SortOrder.decending,
           );
@@ -274,12 +290,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         builder: (context, _) => IconButton.filled(
           tooltip: '移除选中歌曲',
           iconSize: 20,
-          style: IconButton.styleFrom(
-            fixedSize: const Size(40, 40),
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
-            backgroundColor: scheme.error,
-            foregroundColor: scheme.onError,
+          style: AppButton.iconSquare.copyWith(
+            backgroundColor: WidgetStatePropertyAll(scheme.error),
+            foregroundColor: WidgetStatePropertyAll(scheme.onError),
           ),
           onPressed:
               multiSelectController.selected.isEmpty || _isRemovingSelected
@@ -315,11 +328,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       onPressed: () => setState(() => _isReordering = !_isReordering),
       icon: Icon(_isReordering ? Symbols.check : Symbols.reorder, size: 20),
       label: Text(_isReordering ? '完成' : '排序'),
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 16),
-        ),
+      style: AppButton.pageAction.copyWith(
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
         ),
@@ -475,7 +484,6 @@ class _ReorderItem extends StatelessWidget {
   final int index;
   final ColorScheme colorScheme;
   final ScrollPosition? scrollPosition;
-
 
   Widget _dragHandle(ColorScheme scheme) {
     return ReorderableDragStartListener(

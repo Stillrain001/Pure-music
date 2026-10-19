@@ -263,17 +263,12 @@ class _ImmersiveHelpOverlayState extends State<_ImmersiveHelpOverlay> {
           tooltip: '快捷键说明',
           onPressed: _showDialog,
           iconSize: 20,
-          style: ButtonStyle(
-            fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
-            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          style: AppButton.iconSquare.copyWith(
             backgroundColor: WidgetStatePropertyAll(
               scheme.secondaryContainer.withAlpha(235),
             ),
             foregroundColor: WidgetStatePropertyAll(
               scheme.onSecondaryContainer,
-            ),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
             ),
           ),
           icon: const Icon(Symbols.help_outline),

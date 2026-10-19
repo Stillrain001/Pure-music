@@ -43,8 +43,9 @@ description: Pure-music 项目开发指南，覆盖 Windows Flutter/Dart 前端�
 - 使用 `ThemeProvider` 下发主题；使用 `LyricRenderConfig` 和 `LyricViewController` 管理歌词视觉配置，不引入新的状态管理库。
 - 封面主色和调色板由 Rust 提取，Dart 侧的 `ColorExtractionService` 只缓存提取结果，不增加重复的 Dart 取色链路。
 - 使用 `Symbols.xxx` 图标；颜色透明度使用 `Color.withValues(alpha:)`。
+- 页面标题行/工具行的按钮尺寸一律用 `lib/core/design_tokens.dart` 的 `AppButton.pageAction`（文字按钮，高 40 + 横向 padding 16）与 `AppButton.iconSquare`（40×40 图标按钮），不手写 ButtonStyle 尺寸。
 - 不在 `build` 中启动动画、读配置或触发其他副作用；异步回调更新界面前检查 `mounted`。
-- 把 `lib/native/rust/` 和 `rust/src/frb_generated.rs` 中的绑定视为生成代码；修改 Rust API 后通过项目现有生成配置更新，不手工维护生成结果。
+- 把 `lib/native/rust/` 和 `rust/src/frb_generated.rs` 中的绑定视为生成代码；修改 Rust API 后通过项目现有生成配置更新，不手工维护生成结果。每次跑完 codegen，`library_db.dart` 与 `tag_reader.dart` 里手加的三行 export（play_counts / extra_metadata / index_state）会被删掉，必须补回。
 - 桌面歌词只把歌词文件明确标出的长空白行视为过渡行；普通歌词行之间的时间间隔不自动生成插播空白。
 - 演出模式的编排顺序只替换当前播放队列，不修改来源歌单；调整参数时复用已缓存的音频分析结果。
 

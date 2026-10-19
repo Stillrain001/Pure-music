@@ -425,12 +425,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
               multiSelectController.selected.isEmpty || _isDeletingSelected
               ? null
               : _deleteSelectedPlaylists,
-          style: IconButton.styleFrom(
-            fixedSize: const Size(40, 40),
-            padding: EdgeInsets.zero,
-            backgroundColor: scheme.error,
-            foregroundColor: scheme.onError,
-            shape: RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
+          style: AppButton.iconSquare.copyWith(
+            backgroundColor: WidgetStatePropertyAll(scheme.error),
+            foregroundColor: WidgetStatePropertyAll(scheme.onError),
           ),
           icon: _isDeletingSelected
               ? const SizedBox(
@@ -524,7 +521,6 @@ class _PlaylistTile extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _tileSurface(
     BuildContext context,
@@ -653,7 +649,6 @@ class _PlaylistTile extends StatelessWidget {
     );
   }
 
-
   Widget _selectBox() {
     return Checkbox(
       value: _isSelected,
@@ -668,7 +663,6 @@ class _PlaylistTile extends StatelessWidget {
             },
     );
   }
-
 
   Widget _deleteIcon() {
     if (!isDeleting) return const Icon(Symbols.delete);
@@ -804,11 +798,7 @@ class _AddPlaylistMenu extends StatelessWidget {
           menuController.open();
         }
       },
-      style: ButtonStyle(
-        fixedSize: const WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 16),
-        ),
+      style: AppButton.pageAction.copyWith(
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: AppRadius.smCircular),
         ),
