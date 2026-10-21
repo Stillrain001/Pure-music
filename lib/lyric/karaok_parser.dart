@@ -19,6 +19,11 @@ final _qrcWordRe = RegExp(r'[^(]*?((?:.(?!\(\d+,))*.)\((\d+),(\d+)\)');
 /// KRC 单词正则：`<start,dur,?>text`
 final _krcWordRe = RegExp(r'<(\d+),(\d+),\d+>[^<]*?((?:.(?!<\d+,))*.)');
 
+/// 翻译行正则：同时支持 KRC 和标准 LRC 时间戳
+final _translationLineRe = RegExp(
+  r'\[(?:(\d+),\d+|(\d{1,3}):(\d{2}\.\d{2,3}))\](.*?)(\r?\n|$)',
+);
+
 // ──────────────────────────────────────────────
 // 内部模型
 // ──────────────────────────────────────────────
@@ -159,13 +164,19 @@ Lyric? parseKaraokToPureLyric(
   // 合并翻译
   final transLines = <_LineData>[];
   if (transContent != null && transContent.isNotEmpty) {
-    for (final m in _karaOkLineRe.allMatches(transContent)) {
-      transLines.add(_LineData(
-        start: Duration(milliseconds: int.parse(m.group(1)!)),
-        length: Duration.zero,
-        words: [],
-        rawText: m.group(3)?.trim(),
-      ));
+    for (final m in _translationLineRe.allMatches(transContent)) {
+      final startMs = m.group(1) != null
+          ? int.parse(m.group(1)!)
+          : (((int.parse(m.group(2)!) * 60) + double.parse(m.group(3)!)) * 1000)
+                .round();
+      transLines.add(
+        _LineData(
+          start: Duration(milliseconds: startMs),
+          length: Duration.zero,
+          words: [],
+          rawText: m.group(4)?.trim(),
+        ),
+      );
     }
   }
 
