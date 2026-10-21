@@ -3043,25 +3043,26 @@ class __NowPlayingInfoState extends State<_NowPlayingInfo> {
     bool heroEnabled,
   ) {
     final framed = _coverImage(scheme, nowPlayingPath, coverSize, framed: true);
+    final motion = _PlaybackCoverMotion(
+      rotate: AppSettings.instance.circlePlaybackCover,
+      identity: nowPlayingPath,
+      child: framed,
+    );
     return SizedBox(
       width: coverSize,
       height: coverSize,
-      child: _PlaybackCoverMotion(
-        rotate: AppSettings.instance.circlePlaybackCover,
-        identity: nowPlayingPath,
-        child: heroEnabled && nowPlayingPath != null
-            ? Hero(
-                tag: nowPlayingPath,
-                curve: AppSettings.instance.enableNowPlayingOpenMotion
-                    ? nowPlayingOpenCurve
-                    : Curves.fastOutSlowIn,
-                reverseCurve: AppSettings.instance.enableNowPlayingOpenMotion
-                    ? nowPlayingCloseCurve
-                    : Curves.fastOutSlowIn.flipped,
-                child: framed,
-              )
-            : RepaintBoundary(child: framed),
-      ),
+      child: heroEnabled && nowPlayingPath != null
+          ? Hero(
+              tag: nowPlayingPath,
+              curve: AppSettings.instance.enableNowPlayingOpenMotion
+                  ? nowPlayingOpenCurve
+                  : Curves.fastOutSlowIn,
+              reverseCurve: AppSettings.instance.enableNowPlayingOpenMotion
+                  ? nowPlayingCloseCurve
+                  : Curves.fastOutSlowIn.flipped,
+              child: motion,
+            )
+          : RepaintBoundary(child: motion),
     );
   }
 
