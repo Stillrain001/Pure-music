@@ -757,6 +757,9 @@ class PlaybackService extends ChangeNotifier {
 
   Stream<Float32List> get spectrumStream => _player.spectrumStream;
 
+  Stream<Float32List> get spectrumDisplayStream =>
+      _player.spectrumDisplayStream;
+
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
   void _notifyPositionSync() {

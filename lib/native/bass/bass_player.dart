@@ -288,6 +288,7 @@ class BassPlayer {
   int _positionUpdaterVersion = 0;
   late final StreamController<double> _positionStreamController;
   late final StreamController<Float32List> _spectrumStreamController;
+  late final StreamController<Float32List> _spectrumDisplayStreamController;
   late final StreamController<GaplessTransition>
   _gaplessTransitionStreamController;
   final _playerStateStreamController =
@@ -496,6 +497,10 @@ class BassPlayer {
 
   Stream<Float32List> get spectrumStream => _spectrumStreamController.stream;
 
+  /// 播放页频谱条用的细分段频谱（与 [spectrumStream] 同源同节奏，互不影响）。
+  Stream<Float32List> get spectrumDisplayStream =>
+      _spectrumDisplayStreamController.stream;
+
   Stream<PlayerState> get playerStateStream =>
       _playerStateStreamController.stream;
 
@@ -523,6 +528,32 @@ class BassPlayer {
   final Int32List _spectrumBandStarts = Int32List(_spectrumBandCount);
   final Int32List _spectrumBandEnds = Int32List(_spectrumBandCount);
   double _spectrumBandsSampleRate = 0.0;
+
+  // 频谱条：32 段、独立平滑与输出缓冲，不与流光那条流互相干扰
+  static const int _displaySpectrumBandCount = 64;
+  final Float32List _displaySpectrumBands = Float32List(
+    _displaySpectrumBandCount,
+  );
+  final Float32List _displaySpectrumSmoothed = Float32List(
+    _displaySpectrumBandCount,
+  );
+  final Float32List _displaySpectrumOutputA = Float32List(
+    _displaySpectrumBandCount,
+  );
+  final Float32List _displaySpectrumOutputB = Float32List(
+    _displaySpectrumBandCount,
+  );
+  bool _useDisplaySpectrumOutputA = true;
+  final Int32List _displaySpectrumBandStarts = Int32List(
+    _displaySpectrumBandCount,
+  );
+  final Int32List _displaySpectrumBandEnds = Int32List(
+    _displaySpectrumBandCount,
+  );
+  double _displaySpectrumBandsSampleRate = 0.0;
+  bool get _hasAnySpectrumListener =>
+      _spectrumStreamController.hasListener ||
+      _spectrumDisplayStreamController.hasListener;
 
   void setSpectrumUpdateMode(SpectrumUpdateMode mode) {
     spectrumUpdateMode = mode;
@@ -590,7 +621,7 @@ class BassPlayer {
     if (_positionStreamController.hasListener) {
       return _computePlayingTickPeriod();
     }
-    if (_spectrumStreamController.hasListener) {
+    if (_hasAnySpectrumListener) {
       return _computeSpectrumTickPeriod();
     }
     return _computeIdleTickPeriod();
@@ -679,7 +710,7 @@ class BassPlayer {
 
   void _maybeUpdateSpectrum({PlayerState? knownState}) {
     if (_fstream == null) return;
-    if (!_spectrumStreamController.hasListener) return;
+    if (!_hasAnySpectrumListener) return;
     final state = knownState ?? playerState;
     if (state != PlayerState.playing) return;
 
@@ -706,7 +737,7 @@ class BassPlayer {
   void _emitSpectrumFrame() {
     final handle = _sharedOutputHandle;
     if (handle == null) return;
-    if (!_spectrumStreamController.hasListener) return;
+    if (!_hasAnySpectrumListener) return;
     final getData = _bassChannelGetData;
     if (getData == null) return;
 
@@ -718,13 +749,11 @@ class BassPlayer {
     );
     if (bytesRead <= 0) return;
 
-    final fft = _fftBuffer!.asTypedList(256);
-    _computeSpectrum8Into(fft, _streamSampleRate, _spectrumBands);
-    _emitSmoothedSpectrum();
+    _emitSpectrumOutputs(_fftBuffer!.asTypedList(256));
   }
 
   void _emitWasapiSpectrumFrame() {
-    if (!_spectrumStreamController.hasListener) return;
+    if (!_hasAnySpectrumListener) return;
 
     _wasapiFftBuffer ??= malloc.allocate<ffi.Float>(
       256 * ffi.sizeOf<ffi.Float>(),
@@ -736,9 +765,7 @@ class BassPlayer {
     // BASS_WASAPI_GetData returns the number of bytes written; negative means error
     if (bytesRead <= 0) return;
 
-    final fft = _wasapiFftBuffer!.asTypedList(256);
-    _computeSpectrum8Into(fft, _streamSampleRate, _spectrumBands);
-    _emitSmoothedSpectrum();
+    _emitSpectrumOutputs(_wasapiFftBuffer!.asTypedList(256));
   }
 
   void _emitSmoothedSpectrum() {
@@ -760,9 +787,23 @@ class BassPlayer {
     _spectrumStreamController.add(out);
   }
 
+  /// 同一帧 FFT 分别发给流光（8 段）与频谱条（64 段），各自只关心自己的监听者。
+  void _emitSpectrumOutputs(Float32List fft) {
+    if (_spectrumStreamController.hasListener) {
+      _computeSpectrum8Into(fft, _streamSampleRate, _spectrumBands);
+      _emitSmoothedSpectrum();
+    }
+    if (_spectrumDisplayStreamController.hasListener) {
+      _computeDisplaySpectrumInto(fft, _streamSampleRate);
+      _emitSmoothedDisplaySpectrum();
+    }
+  }
+
   void _resetSpectrumSmoothing() {
     _spectrumBands.fillRange(0, _spectrumBands.length, 0.0);
     _spectrumSmoothed.fillRange(0, _spectrumSmoothed.length, 0.0);
+    _displaySpectrumBands.fillRange(0, _displaySpectrumBands.length, 0.0);
+    _displaySpectrumSmoothed.fillRange(0, _displaySpectrumSmoothed.length, 0.0);
     _lastSpectrumUpdateUs = 0;
   }
 
@@ -822,6 +863,78 @@ class BassPlayer {
           .clamp(0.0, 1.0)
           .toDouble();
     }
+  }
+
+  void _ensureDisplaySpectrumBandBins(double sampleRate) {
+    const fftSize = 512.0;
+    const minF = 45.0;
+    const maxF = 16000.0;
+    if ((_displaySpectrumBandsSampleRate - sampleRate).abs() < 1e-3 &&
+        _displaySpectrumBandsSampleRate > 0) {
+      return;
+    }
+
+    final nyquist = sampleRate * 0.5;
+    final clampedMaxF = math.min(maxF, nyquist - 1.0);
+    if (clampedMaxF <= minF || nyquist <= 1.0) {
+      for (int i = 0; i < _displaySpectrumBandCount; i++) {
+        _displaySpectrumBandStarts[i] = 1;
+        _displaySpectrumBandEnds[i] = 2;
+      }
+      _displaySpectrumBandsSampleRate = sampleRate;
+      return;
+    }
+
+    final ratio = clampedMaxF / minF;
+    for (int i = 0; i < _displaySpectrumBandCount; i++) {
+      final a = i / _displaySpectrumBandCount;
+      final b = (i + 1) / _displaySpectrumBandCount;
+      final fa = minF * math.pow(ratio, a).toDouble();
+      final fb = minF * math.pow(ratio, b).toDouble();
+      final start = ((fa / sampleRate) * fftSize).floor().clamp(1, 255).toInt();
+      final end = ((fb / sampleRate) * fftSize)
+          .ceil()
+          .clamp(start + 1, 255)
+          .toInt();
+      _displaySpectrumBandStarts[i] = start;
+      _displaySpectrumBandEnds[i] = end;
+    }
+    _displaySpectrumBandsSampleRate = sampleRate;
+  }
+
+  void _computeDisplaySpectrumInto(Float32List fft, double sampleRate) {
+    _ensureDisplaySpectrumBandBins(sampleRate);
+
+    for (int i = 0; i < _displaySpectrumBandCount; i++) {
+      final start = _displaySpectrumBandStarts[i];
+      final end = _displaySpectrumBandEnds[i];
+      double m = 0.0;
+      for (int k = start; k < end; k++) {
+        final v = fft[k];
+        if (v.isFinite && v > m) m = v.toDouble();
+      }
+      _displaySpectrumBands[i] =
+          (math.log(1.0 + m * 18.0) / _spectrumLogDenominator)
+              .clamp(0.0, 1.0)
+              .toDouble();
+    }
+  }
+
+  void _emitSmoothedDisplaySpectrum() {
+    final out = _useDisplaySpectrumOutputA
+        ? _displaySpectrumOutputA
+        : _displaySpectrumOutputB;
+    _useDisplaySpectrumOutputA = !_useDisplaySpectrumOutputA;
+    for (int i = 0; i < _displaySpectrumBandCount; i++) {
+      final target = _displaySpectrumBands[i];
+      final prev = _displaySpectrumSmoothed[i];
+      // 快起慢落，柱条跳动更干脆
+      final a = target > prev ? 0.72 : 0.28;
+      final next = (prev + (target - prev) * a).clamp(0.0, 1.0).toDouble();
+      _displaySpectrumSmoothed[i] = next;
+      out[i] = next;
+    }
+    _spectrumDisplayStreamController.add(out);
   }
 
   void setEQ(int band, double gain) {
@@ -1569,6 +1682,10 @@ class BassPlayer {
       onCancel: _syncPositionUpdaterPeriod,
     );
     _spectrumStreamController = StreamController<Float32List>.broadcast(
+      onListen: _syncPositionUpdaterPeriod,
+      onCancel: _syncPositionUpdaterPeriod,
+    );
+    _spectrumDisplayStreamController = StreamController<Float32List>.broadcast(
       onListen: _syncPositionUpdaterPeriod,
       onCancel: _syncPositionUpdaterPeriod,
     );
@@ -3770,6 +3887,7 @@ class BassPlayer {
     _playerStateStreamController.close();
     _positionStreamController.close();
     _spectrumStreamController.close();
+    _spectrumDisplayStreamController.close();
     _gaplessTransitionStreamController.close();
     if (_fftBuffer != null) {
       malloc.free(_fftBuffer!);
