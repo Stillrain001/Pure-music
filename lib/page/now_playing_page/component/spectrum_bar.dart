@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'package:pure_music/native/bass/bass_player.dart';
 import 'package:pure_music/play_service/playback_service.dart';
+import 'package:pure_music/core/window_render_gate.dart';
 
 /// 播放页进度条上方的柱状频谱条。
 ///
@@ -42,13 +43,39 @@ class _SpectrumBarState extends State<SpectrumBar>
   Float32List _to = Float32List(0);
   double _t = 1.0;
   bool _reduceMotion = false;
+  bool _windowFramesEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _playback = context.read<PlaybackService>();
-    _subscription = _playback.spectrumDisplayStream.listen(_onData);
+    _windowFramesEnabled = WindowRenderGate.instance.framesEnabled.value;
+    WindowRenderGate.instance.framesEnabled.addListener(_onWindowFramesChanged);
+    _syncSpectrumSubscription();
     _playback.playerStateNotifier.addListener(_onPlayerStateChanged);
+  }
+
+  void _onWindowFramesChanged() {
+    if (!mounted) return;
+    _windowFramesEnabled = WindowRenderGate.instance.framesEnabled.value;
+    if (!_windowFramesEnabled) {
+      _subscription?.cancel();
+      _subscription = null;
+      _ticker?.stop();
+      _lastTick = Duration.zero;
+      return;
+    }
+    _syncSpectrumSubscription();
+  }
+
+  void _syncSpectrumSubscription() {
+    final shouldListen = _windowFramesEnabled && !_reduceMotion;
+    if (shouldListen) {
+      _subscription ??= _playback.spectrumDisplayStream.listen(_onData);
+      return;
+    }
+    _subscription?.cancel();
+    _subscription = null;
   }
 
   @override
@@ -61,11 +88,15 @@ class _SpectrumBarState extends State<SpectrumBar>
         _ticker?.stop();
         _lastTick = Duration.zero;
       }
+      _syncSpectrumSubscription();
     }
   }
 
   @override
   void dispose() {
+    WindowRenderGate.instance.framesEnabled.removeListener(
+      _onWindowFramesChanged,
+    );
     _playback.playerStateNotifier.removeListener(_onPlayerStateChanged);
     _subscription?.cancel();
     _ticker?.dispose();
@@ -74,7 +105,7 @@ class _SpectrumBarState extends State<SpectrumBar>
   }
 
   void _onData(Float32List data) {
-    if (!mounted || data.isEmpty) return;
+    if (!mounted || !_windowFramesEnabled || data.isEmpty) return;
     if (_frame.values.length != data.length) {
       _frame.values = Float32List(data.length);
       _from = Float32List(data.length);

@@ -242,6 +242,18 @@ class MemoryMonitorService {
     AudioLibrary.instance.evictStaleCoverBytes();
   }
 
+  /// 任务栏最小化清理：只回收可重建的非当前资源，保留恢复所需的页面对象。
+  void trimWindowMinimized() {
+    final playingPath = PlayService.existingPlaybackService?.nowPlaying?.path;
+    PaintingBinding.instance.imageCache.clear();
+    CoverImageCache.instance.trimMemory(keepPath: playingPath);
+    CoverImageCache.instance.trimSmall(keepEntries: 128);
+    AudioLibrary.instance.trimCollectionThumbnailRetention(128);
+    LyricsLinePainter.trimPool();
+    LyricsLineWidget.clearBlurFilterCache();
+    AudioLibrary.instance.evictStaleCoverBytes();
+  }
+
   /// 强制释放可回收内存，用于窗口最小化/低内存通知等场景
   void trimAll() {
     PaintingBinding.instance.imageCache.clear();
