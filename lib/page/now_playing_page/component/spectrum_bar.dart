@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +9,11 @@ import 'package:provider/provider.dart';
 import 'package:pure_music/native/bass/bass_player.dart';
 import 'package:pure_music/play_service/playback_service.dart';
 import 'package:pure_music/core/window_render_gate.dart';
+
+@visibleForTesting
+void clearSpectrumFrameForTesting(Float32List values) {
+  values.fillRange(0, values.length, 0.0);
+}
 
 /// 播放页进度条上方的柱状频谱条。
 ///
@@ -63,6 +68,7 @@ class _SpectrumBarState extends State<SpectrumBar>
       _subscription = null;
       _ticker?.stop();
       _lastTick = Duration.zero;
+      _clearFrameToBaseline();
       return;
     }
     _syncSpectrumSubscription();
@@ -87,6 +93,7 @@ class _SpectrumBarState extends State<SpectrumBar>
       if (reduce) {
         _ticker?.stop();
         _lastTick = Duration.zero;
+        _clearFrameToBaseline();
       }
       _syncSpectrumSubscription();
     }
@@ -138,14 +145,26 @@ class _SpectrumBarState extends State<SpectrumBar>
     }
     if (alreadyIdle) return;
     if (_reduceMotion) {
-      _frame.values.fillRange(0, _frame.values.length, 0.0);
-      _repaint.bump();
+      _clearFrameToBaseline();
       return;
     }
     _from.setAll(0, _frame.values);
     _to.fillRange(0, _to.length, 0.0);
     _t = 0.0;
     _ensureTicker();
+  }
+
+  void _clearFrameToBaseline() {
+    if (_frame.values.isEmpty) return;
+    clearSpectrumFrameForTesting(_frame.values);
+    if (_from.length == _frame.values.length) {
+      clearSpectrumFrameForTesting(_from);
+    }
+    if (_to.length == _frame.values.length) {
+      clearSpectrumFrameForTesting(_to);
+    }
+    _t = 1.0;
+    _repaint.bump();
   }
 
   void _ensureTicker() {
