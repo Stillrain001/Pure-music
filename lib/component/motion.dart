@@ -215,6 +215,12 @@ class SidebarMotionScope extends InheritedWidget {
     );
   }
 
+  /// 正文断点按实际可用宽，有侧栏时按展开态预留，避免开合动画中抖动。
+  static double contentWidthOf(BuildContext context, double localWidth) {
+    if (!hasScope(context)) return localWidth;
+    return math.min(localWidth, columnLayoutWidthOf(context));
+  }
+
   @override
   bool updateShouldNotify(SidebarMotionScope oldWidget) {
     // 动画中宽度每帧都变；只在开始/结束或目标变化时通知，避免订阅者跟帧重建。
