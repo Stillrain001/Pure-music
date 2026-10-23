@@ -227,6 +227,12 @@ class BassPlayer {
 
   Timer? _fadeInTimer;
 
+  /// 暂停淡出：淡出完成前不真正暂停，期间可被播放/换源打断
+  Timer? _pauseFadeTimer;
+  int? _pauseFadeHandle;
+  double _pauseFadeGain = 1.0;
+  static const int _pauseFadeMs = 150;
+
   /// 淡出旧流时延迟释放资源的定时器
   Timer? _fadeOutTimer;
   int? _fadeOutHandle;
@@ -462,6 +468,7 @@ class BassPlayer {
     if (_fstream == null) {
       return PlayerState.unknown;
     }
+    if (_pauseFadeTimer != null) return PlayerState.paused;
 
     switch (_bass.BASS_ChannelIsActive(_sharedOutputHandle!)) {
       case bass.BASS_ACTIVE_STOPPED:
@@ -1544,6 +1551,7 @@ class BassPlayer {
   }
 
   void _resetBassHandles() {
+    _cancelPendingPause();
     _cancelOutputGainFade(keepTarget: true);
     _fadeInTimer?.cancel();
     _fadeInTimer = null;
@@ -1960,14 +1968,14 @@ class BassPlayer {
       _bass.BASS_ChannelSetAttribute(
         current,
         bass.BASS_ATTRIB_VOLDSP,
-        _baseOutputVolume * _sourceGain(_replayGainDb),
+        _baseOutputVolume * _pauseFadeGain * _sourceGain(_replayGainDb),
       );
       return;
     }
     _bass.BASS_ChannelSetAttribute(
       _mixerStream!,
       bass.BASS_ATTRIB_VOLDSP,
-      _baseOutputVolume,
+      _baseOutputVolume * _pauseFadeGain,
     );
     _applySourceGain(current, _replayGainDb);
     final queued = _queuedStream;
@@ -2851,6 +2859,7 @@ class BassPlayer {
 
   /// true: 操作成功；false: 操作失败
   bool useExclusiveMode(bool exclusive) {
+    _cancelPendingPause();
     _cancelOutputGainFade(keepTarget: true);
     final prevState = wasapiExclusive;
     if (exclusive == prevState) return true;
@@ -3198,6 +3207,7 @@ class BassPlayer {
   /// if setSource has been called once,
   /// it will pause current channel and free current stream.
   void setSource(String path) {
+    _cancelPendingPause();
     _cancelOutputGainFade(keepTarget: true);
     _replayGainDb = null;
     _activeGaplessTransitionId = null;
@@ -3549,6 +3559,7 @@ class BassPlayer {
   }
 
   void _fallbackFromExclusive() {
+    _cancelPendingPause();
     final seekPos = position;
     final sourcePath = _fPath;
     _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
@@ -3593,6 +3604,7 @@ class BassPlayer {
   /// do nothing if [setSource] hasn't been called
   void start() {
     if (_fstream == null) return;
+    _cancelPendingPause();
 
     if (wasapiExclusive) {
       _logAudioState('start(wasapi)');
@@ -3649,18 +3661,75 @@ class BassPlayer {
     }
   }
 
+  void _startWasapiPauseFade() {
+    _pauseFadeHandle = _fstream;
+    _playerStateStreamController.add(PlayerState.paused);
+    _logAudioState('pause(wasapi-fade)');
+    const steps = 8;
+    const stepMs = 18;
+    var step = 0;
+    _pauseFadeTimer = Timer.periodic(
+      const Duration(milliseconds: stepMs),
+      (timer) {
+        step++;
+        _pauseFadeGain = math.max(0.0, 1.0 - step / steps);
+        _applyPlaybackGains();
+        if (step < steps) return;
+        timer.cancel();
+        _finishWasapiPause();
+      },
+    );
+  }
+
+  void _finishWasapiPause() {
+    _pauseFadeTimer = null;
+    final handle = _pauseFadeHandle;
+    _pauseFadeHandle = null;
+    final stopped =
+        handle != null &&
+        _fstream == handle &&
+        _bassWasapi.BASS_WASAPI_Stop(bass.FALSE) == bass.TRUE;
+    _pauseFadeGain = 1.0;
+    _applyPlaybackGains();
+    _playerStateStreamController.add(playerState);
+    _positionUpdater?.cancel();
+    _emitPositionSnapshot();
+    if (stopped) _logAudioState('pause(wasapi-fade-done)');
+  }
+
+  /// 取消待执行的暂停淡出，输出增益立即回到正常
+  void _cancelPendingPause() {
+    _pauseFadeTimer?.cancel();
+    _pauseFadeTimer = null;
+    _pauseFadeHandle = null;
+    if (_pauseFadeGain != 1.0) {
+      _pauseFadeGain = 1.0;
+      _applyPlaybackGains();
+    }
+  }
+
   /// pause channel, call [start] to resume channel
   ///
   /// do nothing if [setSource] hasn't been called
   void pause() {
     if (_fstream == null) return;
+    if (_pauseFadeTimer != null) return;
+
+    final state = playerState;
+    final fading = state == PlayerState.playing || state == PlayerState.stalled;
 
     if (wasapiExclusive) {
       _logAudioState('pause(wasapi)');
-      return _pauseWasapiExclusive();
+      if (!fading) return _pauseWasapiExclusive();
+      return _startWasapiPauseFade();
     }
     _logAudioState('pause(normal)');
 
+    if (!fading) return _pauseSharedImmediate();
+    _startSharedPauseFade();
+  }
+
+  void _pauseSharedImmediate() {
     final output = _sharedOutputHandle!;
     if (_bass.BASS_ChannelPause(output) == 0) {
       switch (_bass.BASS_ErrorGetCode()) {
@@ -3683,6 +3752,47 @@ class BassPlayer {
     _positionUpdater?.cancel();
     _emitPositionSnapshot();
     _logAudioState('pause(done)');
+  }
+
+  void _startSharedPauseFade() {
+    final output = _sharedOutputHandle!;
+    final sliding = _bass.BASS_ChannelSlideAttribute(
+      output,
+      bass.BASS_ATTRIB_VOL,
+      0.0,
+      _pauseFadeMs,
+    );
+    if (sliding == bass.FALSE) {
+      _bass.BASS_ChannelSetAttribute(output, bass.BASS_ATTRIB_VOL, 0.0);
+    }
+    _playerStateStreamController.add(PlayerState.paused);
+    _logAudioState('pause(fade)');
+    _pauseFadeTimer = Timer(
+      const Duration(milliseconds: _pauseFadeMs + 20),
+      _finishSharedPause,
+    );
+  }
+
+  void _finishSharedPause() {
+    _pauseFadeTimer = null;
+    final output = _sharedOutputHandle;
+    if (output == null) return;
+    final paused = _bass.BASS_ChannelPause(output);
+    if (paused == 0) {
+      // 定时器内不能向上抛，记录错误并恢复音量，避免停在 0 音量
+      final code = _bass.BASS_ErrorGetCode();
+      _bass.BASS_ChannelSetAttribute(output, bass.BASS_ATTRIB_VOL, 1.0);
+      _playerStateStreamController.add(playerState);
+      _positionUpdater?.cancel();
+      _emitPositionSnapshot();
+      log.bass.warn('legacy', '[bass] pause(fade) failed: $code');
+      return;
+    }
+    _bass.BASS_ChannelSetAttribute(output, bass.BASS_ATTRIB_VOL, 1.0);
+    _playerStateStreamController.add(PlayerState.paused);
+    _positionUpdater?.cancel();
+    _emitPositionSnapshot();
+    _logAudioState('pause(fade-done)');
   }
 
   /// set channel's position to given [position]
@@ -3806,6 +3916,7 @@ class BassPlayer {
   ///
   /// Also free the bass.dll.
   void free() {
+    _cancelPendingPause();
     _cancelOutputGainFade(keepTarget: true);
     _fadeInTimer?.cancel();
     _fadeInTimer = null;
