@@ -563,16 +563,16 @@ class _DirectionalTabViewState extends State<DirectionalTabView>
             final isCurrent = index == widget.index;
             final opacity = channel.opacity.value.clamp(0.0, 1.0);
             final isVisible = isCurrent || opacity > 0.001;
-            Widget result = child!;
-            if (!reduceMotion && channel.offset.value.abs() > 0.001) {
-              result = Transform.translate(
-                offset: Offset(channel.offset.value, 0),
-                child: result,
-              );
-            }
-            if (opacity < 0.999) {
-              result = Opacity(opacity: opacity, child: result);
-            }
+            // 始终保留同一层包装，避免合拢动画结束后移除组件导致 tab
+            // 子树被销毁重建（例如图表入场动画重新播放）。
+            final offset = reduceMotion ? 0.0 : channel.offset.value;
+            final result = Opacity(
+              opacity: opacity,
+              child: Transform.translate(
+                offset: Offset(offset, 0),
+                child: child!,
+              ),
+            );
             return Offstage(
               offstage: !isVisible,
               child: TickerMode(
