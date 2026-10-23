@@ -2585,6 +2585,7 @@ const _playbackCoverRotationPeriod = Duration(seconds: 24);
 class _PlaybackCoverRotationMemory {
   static String? _path;
   static double _offsetTurns = 0.0;
+  static int _generation = 0;
 
   static double initialTurns({
     required String? path,
@@ -2594,15 +2595,20 @@ class _PlaybackCoverRotationMemory {
     if (_path != path) {
       _path = path;
       _offsetTurns = 0.0;
+      _generation++;
     }
     return _wrapTurns(baseTurns + _offsetTurns);
   }
+
+  static int get generation => _generation;
 
   static void remember({
     required String path,
     required double position,
     required double turns,
+    required int generation,
   }) {
+    if (_path != path || _generation != generation) return;
     _path = path;
     _offsetTurns = _wrapTurns(turns - _positionTurns(position));
   }
@@ -2641,23 +2647,27 @@ class _PlaybackCoverMotionState extends State<_PlaybackCoverMotion>
   static const _pauseSettleTurns = 0.018;
 
   final playback = PlayService.instance.playbackService;
-  late final AnimationController _rotationController = AnimationController(
-    vsync: this,
-    duration: _playbackCoverRotationPeriod,
-    value: _PlaybackCoverRotationMemory.initialTurns(
-      path: widget.identity,
-      position: playback.position,
-    ),
-  );
+  late final AnimationController _rotationController;
   late PlayerState _playerState;
   bool _reduceMotion = false;
   bool _isSettling = false;
+  int _rotationMemoryGeneration = 0;
 
   bool get _isPlaying => _playerState == PlayerState.playing;
 
   @override
   void initState() {
     super.initState();
+    final initialTurns = _PlaybackCoverRotationMemory.initialTurns(
+      path: widget.identity,
+      position: playback.position,
+    );
+    _rotationMemoryGeneration = _PlaybackCoverRotationMemory.generation;
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: _playbackCoverRotationPeriod,
+      value: initialTurns,
+    );
     _playerState = playback.playerStateNotifier.value;
     playback.playerStateNotifier.addListener(_onPlayerStateChanged);
     _syncRotation(immediate: true);
@@ -2727,6 +2737,7 @@ class _PlaybackCoverMotionState extends State<_PlaybackCoverMotion>
         path: widget.identity,
         position: playback.position,
       );
+      _rotationMemoryGeneration = _PlaybackCoverRotationMemory.generation;
       _syncRotation(immediate: true);
     }
   }
@@ -2739,6 +2750,7 @@ class _PlaybackCoverMotionState extends State<_PlaybackCoverMotion>
         path: widget.identity!,
         position: playback.position,
         turns: _rotationController.value,
+        generation: _rotationMemoryGeneration,
       );
     }
     playback.playerStateNotifier.removeListener(_onPlayerStateChanged);
