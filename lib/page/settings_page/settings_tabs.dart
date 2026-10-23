@@ -959,7 +959,12 @@ class _SpectrumBarMonetSwitchState extends State<_SpectrumBarMonetSwitch> {
   Future<void> _setEnabled(bool value) async {
     setState(() => settings.useMaterialYouForSpectrumBar = value);
     AppSettings.rebuildNotifier.rebuild();
-    await settings.saveSettings();
+    final saved = await settings.saveSettings();
+    if (!saved && mounted) {
+      setState(() => settings.useMaterialYouForSpectrumBar = !value);
+      AppSettings.rebuildNotifier.rebuild();
+      showTextOnSnackBar('主题色频谱设置保存失败', variant: ToastVariant.error);
+    }
   }
 
   @override
