@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:pure_music/core/design_tokens.dart';
-import 'package:pure_music/native/rust/api/tag_reader/index_state.dart';
+import 'package:pure_music/services/native/library_index_service.dart';
 
 /// 曲库扫描进度视图：阶段文案 + 进度条 + 完成后的不可读文件计数。
 /// 供启动扫描页、首次建库视图和手动刷新对话框共用；重试由调用者提供回调。
@@ -14,7 +14,7 @@ class IndexProgressView extends StatelessWidget {
   });
 
   /// 最新一次进度状态；流尚未吐出首条或出错后为 null。
-  final IndexActionState? state;
+  final LibraryIndexState? state;
 
   /// 失败信息；非空时展示失败态。
   final String? errorMessage;
@@ -26,13 +26,13 @@ class IndexProgressView extends StatelessWidget {
     final value = state;
     if (value == null) return '正在准备…';
     switch (value.phase) {
-      case IndexPhase.preparing:
+      case LibraryIndexPhase.preparing:
         return '正在准备…';
-      case IndexPhase.scanning:
+      case LibraryIndexPhase.scanning:
         return value.message.isEmpty ? '正在扫描…' : value.message;
-      case IndexPhase.saving:
+      case LibraryIndexPhase.saving:
         return '正在保存索引…';
-      case IndexPhase.complete:
+      case LibraryIndexPhase.complete:
         return value.message.isEmpty ? '扫描完成' : value.message;
     }
   }
@@ -94,7 +94,7 @@ class IndexProgressView extends StatelessWidget {
                 style: TextStyle(color: scheme.onSurface, fontSize: 14),
               ),
             ),
-            if (value != null && value.phase != IndexPhase.complete) ...[
+            if (value != null && value.phase != LibraryIndexPhase.complete) ...[
               const SizedBox(width: 8.0),
               Text(
                 '${(value.progress.clamp(0.0, 1.0) * 100).round()}%',
@@ -108,8 +108,8 @@ class IndexProgressView extends StatelessWidget {
           ],
         ),
         if (value != null &&
-            value.phase == IndexPhase.complete &&
-            value.unreadableTotal > BigInt.zero) ...[
+            value.phase == LibraryIndexPhase.complete &&
+            value.unreadableTotal > 0) ...[
           const SizedBox(height: 8.0),
           Text(
             '${value.unreadableTotal} 个文件无法读取，已跳过；可稍后重新扫描',

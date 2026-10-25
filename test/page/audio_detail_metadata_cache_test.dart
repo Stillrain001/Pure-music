@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_music/library/audio_library.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart'
-    as rust_tag_reader;
 import 'package:pure_music/page/audio_detail_metadata_cache.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
 
 void main() {
   test(
@@ -12,7 +11,7 @@ void main() {
     () async {
       final audio = _audio(1);
       final metadata = _metadata('genre', 'rock');
-      final pending = Completer<rust_tag_reader.AudioExtraMetadata>();
+      final pending = Completer<AudioExtraMetadata>();
       var calls = 0;
       final cache = AudioDetailMetadataCache(
         loader: (_) {
@@ -39,7 +38,7 @@ void main() {
       loader: (_) {
         calls++;
         if (calls == 1) {
-          return Future<rust_tag_reader.AudioExtraMetadata>.error(
+          return Future<AudioExtraMetadata>.error(
             StateError('temporary failure'),
           );
         }
@@ -76,8 +75,8 @@ void main() {
     'evicting an in-flight read prevents it from repopulating the cache',
     () async {
       final audio = _audio(4);
-      final firstPending = Completer<rust_tag_reader.AudioExtraMetadata>();
-      final secondPending = Completer<rust_tag_reader.AudioExtraMetadata>();
+      final firstPending = Completer<AudioExtraMetadata>();
+      final secondPending = Completer<AudioExtraMetadata>();
       var calls = 0;
       final cache = AudioDetailMetadataCache(
         loader: (_) {
@@ -117,9 +116,14 @@ Audio _audio(int index) => Audio(
   null,
 );
 
-rust_tag_reader.AudioExtraMetadata _metadata(String key, String value) =>
-    rust_tag_reader.AudioExtraMetadata(
-      extension_: 'flac',
-      fileSize: BigInt.from(1),
-      items: [rust_tag_reader.AudioExtraItem(key: key, value: value)],
-    );
+AudioExtraMetadata _metadata(String key, String value) => AudioExtraMetadata(
+  extension: 'flac',
+  fileSize: 1,
+  channels: null,
+  bitDepth: null,
+  items: [AudioExtraItem(key: key, value: value)],
+  replaygainTrackGain: null,
+  replaygainTrackPeak: null,
+  replaygainAlbumGain: null,
+  replaygainAlbumPeak: null,
+);

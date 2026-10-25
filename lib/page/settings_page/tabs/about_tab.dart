@@ -11,10 +11,10 @@ import 'package:pure_music/core/preference.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/update_checker.dart';
 import 'package:pure_music/core/utils.dart';
-import 'package:pure_music/native/rust/api/utils.dart' as rust_utils;
 import 'package:pure_music/page/settings_page/check_update.dart';
 import 'package:pure_music/page/settings_page/create_issue.dart';
 import 'package:pure_music/page/settings_page/tabs/settings_section_header.dart';
+import 'package:pure_music/services/native/platform_service.dart';
 
 class AboutTabContent extends StatelessWidget {
   const AboutTabContent({
@@ -158,7 +158,9 @@ class _AboutContributorsSectionState extends State<_AboutContributorsSection> {
         children: [
           const SettingsSectionHeader('贡献者'),
           const SizedBox(height: 8.0),
-          LayoutBuilder(builder: (context, constraints) => _contributorWrap(constraints)),
+          LayoutBuilder(
+            builder: (context, constraints) => _contributorWrap(constraints),
+          ),
         ],
       ),
     );
@@ -181,8 +183,6 @@ class _AboutContributorsSectionState extends State<_AboutContributorsSection> {
       ],
     );
   }
-
-
 }
 
 class _AboutContributor {
@@ -246,8 +246,8 @@ class _ContributorTile extends StatelessWidget {
   }
 
   Future<void> _openProfile(BuildContext context) async {
-    final opened = await rust_utils.launchInBrowser(
-      uri: contributor.profileUrl,
+    final opened = await PlatformService.instance.launchInBrowser(
+      contributor.profileUrl,
     );
     if (!opened && context.mounted) {
       showTextOnSnackBar('打开链接失败');
@@ -468,7 +468,7 @@ class _AboutLinkItem extends StatelessWidget {
       description: title,
       action: FilledButton.tonalIcon(
         onPressed: () async {
-          final opened = await rust_utils.launchInBrowser(uri: url);
+          final opened = await PlatformService.instance.launchInBrowser(url);
           if (!opened) {
             showTextOnSnackBar('打开链接失败');
           }

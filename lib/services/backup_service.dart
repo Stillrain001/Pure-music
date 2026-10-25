@@ -3,14 +3,13 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' as frb;
 import 'package:path/path.dart' as p;
 import 'package:pure_music/core/database.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/utils.dart';
-import 'package:pure_music/native/rust/api/library_db.dart' as library_db;
 import 'package:pure_music/services/backup_file_transaction.dart';
 import 'package:pure_music/services/lastfm/lastfm_models.dart';
+import 'package:pure_music/services/native/playback_stats_service.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 /// 备份类别。不含曲库索引本身，只含用户数据与偏好。
@@ -102,7 +101,9 @@ Future<void> _exportPlaylistsCategory(Archive archive) async {
 }
 
 Future<void> _exportPlayCountsCategory(Directory root, Archive archive) async {
-  final entries = await library_db.exportPlayCounts(indexPath: root.path);
+  final entries = await PlaybackStatsService.instance.exportPlayCounts(
+    indexPath: root.path,
+  );
   final list = entries
       .map(
         (e) => {
@@ -118,14 +119,11 @@ Future<void> _exportPlayCountsCategory(Directory root, Archive archive) async {
 }
 
 Future<void> _exportPlayHistoryCategory(Directory root, Archive archive) async {
-  final entries = await library_db.exportPlayHistory(indexPath: root.path);
+  final entries = await PlaybackStatsService.instance.exportPlayHistory(
+    indexPath: root.path,
+  );
   final list = entries
-      .map(
-        (e) => {
-          'path': e.path,
-          'playedAt': e.playedAt.map((t) => t.toInt()).toList(),
-        },
-      )
+      .map((e) => {'path': e.path, 'playedAt': e.playedAt})
       .toList();
   _addJsonEntry(archive, _playHistoryEntryName, list);
 }
@@ -456,7 +454,7 @@ Future<void> _importPlayCountsCategory(
   final playCountEntries = list
       .whereType<Map<String, dynamic>>()
       .map(
-        (m) => library_db.PlayCountEntry(
+        (m) => PlayCountRecord(
           path: _readString(m['path']) ?? '',
           title: _readString(m['title']) ?? '',
           artist: _readString(m['artist']) ?? '',
@@ -468,7 +466,7 @@ Future<void> _importPlayCountsCategory(
       )
       .where((e) => e.path.isNotEmpty)
       .toList();
-  await library_db.importPlayCounts(
+  await PlaybackStatsService.instance.importPlayCounts(
     indexPath: root.path,
     entries: playCountEntries,
     overwrite: mode == BackupImportMode.overwrite,
@@ -484,7 +482,7 @@ Future<void> _importPlayHistoryCategory(
   if (entry == null || !entry.isFile) return;
   final list = jsonDecode(utf8.decode(entry.content));
   if (list is! List) return;
-  final historyEntries = <library_db.PlayHistoryEntry>[];
+  final historyEntries = <PlayHistoryRecord>[];
   for (final item in list) {
     if (item is! Map) continue;
     final path = _readString(item['path']);
@@ -497,15 +495,10 @@ Future<void> _importPlayHistoryCategory(
       if (time > 0) times.add(time);
     }
     if (times.isEmpty) continue;
-    historyEntries.add(
-      library_db.PlayHistoryEntry(
-        path: path,
-        playedAt: frb.Int64List.fromList(times),
-      ),
-    );
+    historyEntries.add(PlayHistoryRecord(path: path, playedAt: times));
   }
   if (historyEntries.isEmpty) return;
-  await library_db.importPlayHistory(
+  await PlaybackStatsService.instance.importPlayHistory(
     indexPath: root.path,
     entries: historyEntries,
     overwrite: mode == BackupImportMode.overwrite,

@@ -13,7 +13,6 @@ import 'package:pure_music/core/window_lifecycle.dart';
 import 'package:pure_music/core/zh_converter.dart';
 import 'package:pure_music/core/hotkeys.dart';
 import 'package:pure_music/core/preference.dart';
-import 'package:pure_music/native/rust/api/installed_font.dart';
 import 'package:pure_music/lyric/lyric_source.dart';
 import 'package:pure_music/lyric/lyric_tag_word_format.dart';
 import 'package:pure_music/component/motion.dart';
@@ -26,6 +25,7 @@ import 'package:pure_music/play_service/desktop_lyric_service.dart';
 import 'package:pure_music/page/now_playing_page/component/lyric_view_controls.dart';
 import 'package:pure_music/page/page_scaffold.dart';
 import 'package:pure_music/page/settings_page/artist_alias_editor.dart';
+import 'package:pure_music/services/native/platform_service.dart';
 import 'package:pure_music/page/settings_page/artist_no_split_editor.dart';
 import 'package:pure_music/page/settings_page/artist_separator_editor.dart';
 import 'package:pure_music/page/settings_page/settings_group_entry.dart';
@@ -3018,9 +3018,9 @@ class _FontPickerTileState extends State<_FontPickerTile> {
     if (_isBusy) return;
     _setBusyLabel('获取中');
     try {
-      final installedFont = await getInstalledFonts();
+      final installedFont = await PlatformService.instance.getInstalledFonts();
       if (!mounted) return;
-      if (installedFont == null || installedFont.isEmpty) {
+      if (installedFont.isEmpty) {
         showTextOnSnackBar('无法获取字体', variant: ToastVariant.error);
         return;
       }
@@ -3075,7 +3075,7 @@ class _FontPickerTileState extends State<_FontPickerTile> {
     }
   }
 
-  Future<void> _applySelectedFont(InstalledFont selectedFont) async {
+  Future<void> _applySelectedFont(InstalledFontRecord selectedFont) async {
     final settings = AppSettings.instance;
     final old = _currentFontSettings();
     try {
@@ -3129,13 +3129,13 @@ class _FontPickerTileState extends State<_FontPickerTile> {
 class _FontSelection {
   const _FontSelection(this.font);
 
-  final InstalledFont? font;
+  final InstalledFontRecord? font;
 }
 
 class _FontSelector extends StatefulWidget {
   const _FontSelector({required this.installedFont, required this.currentFont});
 
-  final List<InstalledFont> installedFont;
+  final List<InstalledFontRecord> installedFont;
   final String? currentFont;
 
   @override
@@ -3152,7 +3152,7 @@ class _FontSelectorState extends State<_FontSelector> {
     super.dispose();
   }
 
-  List<InstalledFont> get _filtered {
+  List<InstalledFontRecord> get _filtered {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return widget.installedFont;
     return widget.installedFont
@@ -3321,7 +3321,7 @@ class _FontSelectorState extends State<_FontSelector> {
     );
   }
 
-  Widget _fontTile(ColorScheme scheme, InstalledFont font) {
+  Widget _fontTile(ColorScheme scheme, InstalledFontRecord font) {
     final selected = font.fullName == widget.currentFont;
     final loaded = isAppFontLoaded(font.fullName);
     return ListTile(

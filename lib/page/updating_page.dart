@@ -5,10 +5,10 @@ import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/library/playlist.dart';
 import 'package:pure_music/lyric/lyric_source.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/component/index_progress_view.dart';
 import 'package:pure_music/core/window_lifecycle.dart';
+import 'package:pure_music/services/native/library_index_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pure_music/core/paths.dart' as app_paths;
@@ -147,8 +147,8 @@ class UpdatingStateView extends StatefulWidget {
 }
 
 class _UpdatingStateViewState extends State<UpdatingStateView> {
-  StreamSubscription<IndexActionState>? _subscription;
-  IndexActionState? _latestAction;
+  StreamSubscription<LibraryIndexState>? _subscription;
+  LibraryIndexState? _latestAction;
   String? _errorMessage;
 
   Future<void> whenIndexUpdated() async {
@@ -186,11 +186,12 @@ class _UpdatingStateViewState extends State<UpdatingStateView> {
   void _startUpdate() {
     _subscription?.cancel();
     setState(() => _errorMessage = null);
-    _subscription =
-        updateIndex(
+    _subscription = LibraryIndexService.instance
+        .updateIndex(
           indexPath: widget.indexPath.path,
           forceMetadataCheck: false,
-        ).listen(
+        )
+        .listen(
           (action) {
             if (action.message.isNotEmpty) {
               log.library.info(

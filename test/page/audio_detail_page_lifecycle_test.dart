@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart'
-    as rust_tag_reader;
 import 'package:pure_music/page/audio_detail_metadata_cache.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
 
 void main() {
   test('does not apply metadata after the owner is unmounted', () async {
-    final pending = Completer<rust_tag_reader.AudioExtraMetadata>();
+    final pending = Completer<AudioExtraMetadata>();
     var mounted = true;
     var applied = 0;
 
@@ -38,9 +37,14 @@ void main() {
   });
 }
 
-rust_tag_reader.AudioExtraMetadata _metadata() =>
-    rust_tag_reader.AudioExtraMetadata(
-      extension_: 'flac',
-      fileSize: BigInt.zero,
-      items: [],
-    );
+AudioExtraMetadata _metadata() => const AudioExtraMetadata(
+  extension: 'flac',
+  fileSize: 0,
+  channels: null,
+  bitDepth: null,
+  items: [],
+  replaygainTrackGain: null,
+  replaygainTrackPeak: null,
+  replaygainAlbumGain: null,
+  replaygainAlbumPeak: null,
+);

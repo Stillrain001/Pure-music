@@ -5,8 +5,8 @@ import 'package:pure_music/core/app_fonts.dart' as app_fonts;
 import 'package:pure_music/core/color_extraction.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/library/audio_library.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart' as rust_tag_reader;
 import 'package:pure_music/play_service/play_service.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
 import 'package:flutter/material.dart';
 
 ColorScheme _applyLightSurfacePalette(ColorScheme scheme) {
@@ -359,13 +359,13 @@ class ThemeProvider extends ChangeNotifier {
       developer.Timeline.startSync('cover.extractColors');
       late final List<int> rustColors;
       try {
-        final result = await rust_tag_reader.getPictureAndColors(
+        final result = await MediaMetadataService.instance.getPictureAndColors(
           path: path,
           width: 1,
           height: 1,
           numColors: 4,
         );
-        rustColors = result.$2;
+        rustColors = result.colors;
       } finally {
         developer.Timeline.finishSync();
       }

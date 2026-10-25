@@ -7,10 +7,10 @@ import 'package:pure_music/core/setting_action_state.dart';
 import 'package:pure_music/core/settings/settings_decoder.dart';
 import 'package:pure_music/core/settings/settings_types.dart';
 import 'package:pure_music/core/window_placement.dart';
-import 'package:pure_music/native/rust/api/system_theme.dart';
 import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/core/zh_converter.dart';
+import 'package:pure_music/services/native/platform_service.dart';
 import 'package:pure_music/lyric/lyric_source.dart';
 import 'package:pure_music/lyric/lyric_tag_word_format.dart';
 import 'package:flutter/material.dart';
@@ -384,7 +384,7 @@ class AppSettings {
   static AppSettings get instance => _instance;
 
   static ThemeMode getWindowsThemeMode() {
-    final systemTheme = SystemTheme.getSystemTheme();
+    final systemTheme = PlatformService.instance.getSystemTheme();
 
     final isDarkMode =
         (((5 * systemTheme.fore.$3) +
@@ -395,7 +395,7 @@ class AppSettings {
   }
 
   static int getWindowsTheme() {
-    final systemTheme = SystemTheme.getSystemTheme();
+    final systemTheme = PlatformService.instance.getSystemTheme();
     return Color.fromARGB(
       systemTheme.accent.$1,
       systemTheme.accent.$2,

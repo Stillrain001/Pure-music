@@ -8,10 +8,10 @@ import 'package:pure_music/core/update_checker.dart';
 import 'package:pure_music/core/update_download_monitor.dart';
 import 'package:pure_music/core/update_installer.dart';
 import 'package:pure_music/core/utils.dart';
-import 'package:pure_music/native/rust/api/utils.dart' as rust_utils;
+import 'package:pure_music/services/native/platform_service.dart';
 
 Future<void> _launchBrowserUrl(String uri) async {
-  final opened = await rust_utils.launchInBrowser(uri: uri);
+  final opened = await PlatformService.instance.launchInBrowser(uri);
   if (!opened) {
     showTextOnSnackBar('打开链接失败');
   }
@@ -359,10 +359,8 @@ class _NewestUpdateViewState extends State<NewestUpdateView> {
           ?.isNotEmpty ==
       true;
 
-  bool get _hasChecksum => _info.hasChecksum(
-    channel: _channel,
-    portableBuild: portableBuild,
-  );
+  bool get _hasChecksum =>
+      _info.hasChecksum(channel: _channel, portableBuild: portableBuild);
 
   bool get _canInstall => _hasDownload && _hasChecksum;
 

@@ -1,5 +1,4 @@
 import 'dart:io' as io;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
@@ -17,13 +16,14 @@ import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/lyric/lrc_serializer.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart' as rust_tag_reader;
-import 'package:pure_music/native/rust/api/utils.dart';
 import 'package:pure_music/page/audio_detail_cover.dart';
 import 'package:pure_music/page/audio_detail_metadata_cache.dart';
 import 'package:pure_music/play_service/audio_tag_write_scheduler.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/taskbar_thumbnail_service.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
+import 'package:pure_music/services/native/platform_service.dart';
+import 'package:pure_music/services/network/https_bytes_service.dart';
 import 'package:pure_music/services/online_lyric/api/net_lyric_api.dart'
     as net_api;
 
@@ -40,23 +40,23 @@ String _formatBytes(int bytes) {
 }
 
 final _audioExtraCache = AudioDetailMetadataCache(
-  loader: (audio) => rust_tag_reader.readAudioExtraMetadata(path: audio.path),
+  loader: (audio) =>
+      MediaMetadataService.instance.readExtraMetadata(audio.path),
 );
 
-rust_tag_reader.AudioExtraMetadata _emptyAudioExtraMetadata() =>
-    rust_tag_reader.AudioExtraMetadata(
-      extension_: '',
-      fileSize: BigInt.zero,
-      channels: null,
-      bitDepth: null,
-      items: [],
-      replaygainTrackGain: null,
-      replaygainTrackPeak: null,
-      replaygainAlbumGain: null,
-      replaygainAlbumPeak: null,
-    );
+AudioExtraMetadata _emptyAudioExtraMetadata() => const AudioExtraMetadata(
+  extension: '',
+  fileSize: 0,
+  channels: null,
+  bitDepth: null,
+  items: [],
+  replaygainTrackGain: null,
+  replaygainTrackPeak: null,
+  replaygainAlbumGain: null,
+  replaygainAlbumPeak: null,
+);
 
-Future<rust_tag_reader.AudioExtraMetadata> _getAudioExtra(Audio audio) =>
+Future<AudioExtraMetadata> _getAudioExtra(Audio audio) =>
     _audioExtraCache.get(audio).catchError((_) => _emptyAudioExtraMetadata());
 
 class AudioDetailPageSurface extends StatelessWidget {
@@ -85,7 +85,7 @@ class AudioDetailPageSurface extends StatelessWidget {
   }
 }
 
-String? _findItem(List<rust_tag_reader.AudioExtraItem> items, String key) {
+String? _findItem(List<AudioExtraItem> items, String key) {
   for (final item in items) {
     if (item.key == key) return item.value;
   }
@@ -111,7 +111,7 @@ class _FieldControllers {
   final copyright = TextEditingController();
   final license = TextEditingController();
 
-  void initFrom(Audio audio, List<rust_tag_reader.AudioExtraItem> items) {
+  void initFrom(Audio audio, List<AudioExtraItem> items) {
     title.text = audio.title;
     artist.text = audio.artist;
     album.text = audio.album;
@@ -151,8 +151,8 @@ class _FieldControllers {
     license.dispose();
   }
 
-  rust_tag_reader.WriteTagPayload buildPayload() {
-    return rust_tag_reader.WriteTagPayload(
+  AudioTagPayload buildPayload() {
+    return AudioTagPayload(
       title: title.text,
       artist: artist.text,
       album: album.text,
@@ -217,7 +217,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     if (_isOpeningInExplorer) return;
     setState(() => _isOpeningInExplorer = true);
     try {
-      final result = await showInExplorer(path: audio.path);
+      final result = await PlatformService.instance.showInExplorer(audio.path);
       if (!result && mounted) {
         showTextOnSnackBar('打开失败');
       }
@@ -307,13 +307,13 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
         path: audio.path,
         write: () async {
           if (coverBytes != null) {
-            await rust_tag_reader.writeAudioCover(
+            await MediaMetadataService.instance.writeCover(
               path: audio.path,
               bytes: coverBytes,
             );
             coverWritten = true;
           }
-          await rust_tag_reader.writeAudioTags(
+          await MediaMetadataService.instance.writeTags(
             path: audio.path,
             payload: payload,
             onlyChanged: true,
@@ -519,7 +519,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   }
 
   Widget _infoExtraSections(ColorScheme scheme, double maxWidth) {
-    return FutureBuilder<rust_tag_reader.AudioExtraMetadata>(
+    return FutureBuilder<AudioExtraMetadata>(
       future: _getAudioExtra(audio),
       builder: (context, snapshot) {
         final data = snapshot.data;
@@ -531,7 +531,9 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   }
 
   Widget _buildLyricTab(ColorScheme scheme) {
-    _lyricFuture ??= rust_tag_reader.getLyricFromPath(path: audio.path);
+    _lyricFuture ??= MediaMetadataService.instance.readEmbeddedLyric(
+      audio.path,
+    );
     return Stack(
       children: [
         SingleChildScrollView(
@@ -613,7 +615,9 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     );
     if (written != true || !mounted) return;
     setState(() {
-      _lyricFuture = rust_tag_reader.getLyricFromPath(path: audio.path);
+      _lyricFuture = MediaMetadataService.instance.readEmbeddedLyric(
+        audio.path,
+      );
     });
   }
 
@@ -911,7 +915,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   Widget _buildViewSections(
     ColorScheme scheme,
     double maxWidth,
-    rust_tag_reader.AudioExtraMetadata? data,
+    AudioExtraMetadata? data,
   ) {
     return _buildViewSectionLayout(maxWidth, [
       _DetailSection(
@@ -932,7 +936,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     ]);
   }
 
-  List<Widget> _viewTagFields(rust_tag_reader.AudioExtraMetadata? data) {
+  List<Widget> _viewTagFields(AudioExtraMetadata? data) {
     final tagFields = <Widget>[
       _DetailField(label: '音轨', value: audio.track.toString()),
     ];
@@ -951,7 +955,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     return tagFields;
   }
 
-  List<Widget> _viewTechnicalFields(rust_tag_reader.AudioExtraMetadata? data) {
+  List<Widget> _viewTechnicalFields(AudioExtraMetadata? data) {
     final bpm = _extraItemValue(data, 'bpm');
     return [
       _DetailField(
@@ -978,10 +982,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     ];
   }
 
-  String? _extraItemValue(
-    rust_tag_reader.AudioExtraMetadata? data,
-    String key,
-  ) {
+  String? _extraItemValue(AudioExtraMetadata? data, String key) {
     for (final item in data?.items ?? const []) {
       if (item.key.trim().toLowerCase() != key) continue;
       final value = item.value.trim();
@@ -990,7 +991,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     return null;
   }
 
-  List<Widget> _replayGainFields(rust_tag_reader.AudioExtraMetadata? data) {
+  List<Widget> _replayGainFields(AudioExtraMetadata? data) {
     if (data == null) return const [];
     final fields = <Widget>[];
     void add(String label, String? value) {
@@ -1077,7 +1078,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   Widget _buildEditSections(
     ColorScheme scheme,
     double maxWidth,
-    rust_tag_reader.AudioExtraMetadata? data,
+    AudioExtraMetadata? data,
   ) {
     return _editSectionLayout(
       maxWidth,
@@ -1124,7 +1125,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     );
   }
 
-  Widget _editTechnicalSection(rust_tag_reader.AudioExtraMetadata? data) {
+  Widget _editTechnicalSection(AudioExtraMetadata? data) {
     return _DetailSection(
       title: '音频参数',
       icon: Symbols.graphic_eq,
@@ -1132,7 +1133,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     );
   }
 
-  Widget _editFileSection(rust_tag_reader.AudioExtraMetadata? data) {
+  Widget _editFileSection(AudioExtraMetadata? data) {
     return _DetailSection(
       title: '文件信息',
       icon: Symbols.folder,
@@ -1420,8 +1421,8 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
 
   Future<void> _loadEmbeddedLyric() async {
     try {
-      final lyric = await rust_tag_reader.getLyricFromPath(
-        path: widget.audio.path,
+      final lyric = await MediaMetadataService.instance.readEmbeddedLyric(
+        widget.audio.path,
       );
       if (!mounted) return;
       setState(() {
@@ -1443,7 +1444,7 @@ class _LyricsEditDialogState extends State<_LyricsEditDialog> {
     try {
       final timing = await audioTagWriteScheduler.submit(
         path: widget.audio.path,
-        write: () => rust_tag_reader.writeLyricToPath(
+        write: () => MediaMetadataService.instance.writeEmbeddedLyric(
           path: widget.audio.path,
           lyric: _ctrl.text,
         ),
@@ -1689,7 +1690,7 @@ class _FetchLyricFromNetDialogState extends State<_FetchLyricFromNetDialog> {
       if (writeDirectly) {
         final timing = await audioTagWriteScheduler.submit(
           path: widget.audio.path,
-          write: () => rust_tag_reader.writeLyricToPath(
+          write: () => MediaMetadataService.instance.writeEmbeddedLyric(
             path: widget.audio.path,
             lyric: text,
           ),
@@ -2119,25 +2120,11 @@ class _CoverSearchDialogState extends State<_CoverSearchDialog> {
   }
 
   Future<List<int>?> _downloadImage(String url) async {
-    io.HttpClient? client;
-    try {
-      final uri = Uri.tryParse(url);
-      if (uri == null || uri.scheme != 'https') return null;
-      client = io.HttpClient();
-      client.connectionTimeout = const Duration(seconds: 10);
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      if (response.statusCode != 200) return null;
-      final builder = BytesBuilder(copy: false);
-      await for (final chunk in response) {
-        builder.add(chunk);
-      }
-      return builder.takeBytes();
-    } catch (_) {
-      return null;
-    } finally {
-      client?.close(force: true);
-    }
+    return HttpsBytesService.instance.get(
+      url: url,
+      timeout: const Duration(seconds: 10),
+      isCancelled: () => !mounted,
+    );
   }
 
   @override
@@ -2383,27 +2370,14 @@ class _CoverSearchDialogState extends State<_CoverSearchDialog> {
 
   Future<void> _loadImageSize(String url) async {
     if (_coverImageSizeCache.containsKey(url)) return;
-    io.HttpClient? client;
     ui.Codec? codec;
     try {
-      final uri = Uri.tryParse(url);
-      if (uri == null || uri.scheme != 'https') return;
-      client = io.HttpClient();
-      client.connectionTimeout = const Duration(seconds: 8);
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      if (response.statusCode != 200) return;
-      final chunks = <List<int>>[];
-      await for (final chunk in response) {
-        chunks.add(chunk);
-      }
-      final totalLen = chunks.fold<int>(0, (sum, c) => sum + c.length);
-      final bytes = Uint8List(totalLen);
-      var offset = 0;
-      for (final chunk in chunks) {
-        bytes.setRange(offset, offset + chunk.length, chunk);
-        offset += chunk.length;
-      }
+      final bytes = await HttpsBytesService.instance.get(
+        url: url,
+        timeout: const Duration(seconds: 8),
+        isCancelled: () => !mounted,
+      );
+      if (bytes == null) return;
       codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       try {

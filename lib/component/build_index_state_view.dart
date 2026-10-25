@@ -2,15 +2,25 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:pure_music/component/index_progress_view.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
 import 'package:pure_music/core/utils.dart';
+import 'package:pure_music/services/native/library_index_service.dart';
 import 'package:flutter/material.dart';
 
 typedef IndexBuilder =
-    Stream<IndexActionState> Function({
+    Stream<LibraryIndexState> Function({
       required List<String> folders,
       required String indexPath,
     });
+
+Stream<LibraryIndexState> _defaultBuildIndex({
+  required List<String> folders,
+  required String indexPath,
+}) {
+  return LibraryIndexService.instance.buildIndexFromFolders(
+    folders: folders,
+    indexPath: indexPath,
+  );
+}
 
 class BuildIndexStateView extends StatefulWidget {
   const BuildIndexStateView({
@@ -18,7 +28,7 @@ class BuildIndexStateView extends StatefulWidget {
     required this.indexPath,
     required this.folders,
     required this.whenIndexBuilt,
-    this.buildIndex = buildIndexFromFoldersRecursively,
+    this.buildIndex = _defaultBuildIndex,
   });
 
   final Directory indexPath;
@@ -31,7 +41,7 @@ class BuildIndexStateView extends StatefulWidget {
 }
 
 class _BuildIndexStateViewState extends State<BuildIndexStateView> {
-  Stream<IndexActionState>? _buildIndexStream;
+  Stream<LibraryIndexState>? _buildIndexStream;
   bool _done = false;
   String? _errorMessage;
 
@@ -83,7 +93,7 @@ class _BuildIndexStateViewState extends State<BuildIndexStateView> {
     );
   }
 
-  Widget _buildSnapshot(AsyncSnapshot<IndexActionState> snapshot) {
+  Widget _buildSnapshot(AsyncSnapshot<LibraryIndexState> snapshot) {
     if (snapshot.hasError) {
       return IndexProgressView(
         errorMessage: '曲库索引构建失败，请查看日志',

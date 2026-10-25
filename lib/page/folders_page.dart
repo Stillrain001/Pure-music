@@ -15,7 +15,7 @@ import 'package:pure_music/core/enums.dart';
 import 'package:pure_music/page/folder_manager_dialog.dart';
 import 'package:pure_music/page/uni_page.dart';
 import 'package:pure_music/component/motion.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/services/native/library_index_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -539,8 +539,8 @@ class _RefreshIndexDialog extends StatefulWidget {
 }
 
 class _RefreshIndexDialogState extends State<_RefreshIndexDialog> {
-  StreamSubscription<IndexActionState>? _subscription;
-  IndexActionState? _latest;
+  StreamSubscription<LibraryIndexState>? _subscription;
+  LibraryIndexState? _latest;
   String? _errorMessage;
 
   @override
@@ -554,7 +554,8 @@ class _RefreshIndexDialogState extends State<_RefreshIndexDialog> {
     if (!mounted) return;
     setState(() => _errorMessage = null);
     final dir = await getAppDataDir();
-    _subscription = updateIndex(indexPath: dir.path, forceMetadataCheck: true)
+    _subscription = LibraryIndexService.instance
+        .updateIndex(indexPath: dir.path, forceMetadataCheck: true)
         .listen(
           (action) {
             if (mounted) setState(() => _latest = action);

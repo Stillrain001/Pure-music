@@ -5,9 +5,9 @@ import 'package:pure_music/component/settings_tile.dart';
 import 'package:pure_music/core/hotkeys.dart';
 import 'package:pure_music/core/settings.dart';
 import 'package:pure_music/core/utils.dart';
-import 'package:pure_music/native/rust/api/utils.dart' as rust_utils;
 import 'package:pure_music/services/lastfm/lastfm_models.dart';
 import 'package:pure_music/services/lastfm/lastfm_service.dart';
+import 'package:pure_music/services/native/platform_service.dart';
 
 class LastFmSettingsPanel extends StatefulWidget {
   const LastFmSettingsPanel({super.key});
@@ -179,10 +179,9 @@ class _LastFmSettingsPanelState extends State<LastFmSettingsPanel> {
     ];
   }
 
-
   Future<void> _openCreateApiKey() async {
-    final opened = await rust_utils.launchInBrowser(
-      uri: 'https://www.last.fm/api/account/create',
+    final opened = await PlatformService.instance.launchInBrowser(
+      'https://www.last.fm/api/account/create',
     );
     if (!opened) {
       showTextOnSnackBar('打开页面失败', variant: ToastVariant.error);

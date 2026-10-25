@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_music/component/build_index_state_view.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/services/native/library_index_service.dart';
 
 void main() {
   testWidgets('index errors do not invoke the success callback', (
     tester,
   ) async {
-    final controller = StreamController<IndexActionState>();
+    final controller = StreamController<LibraryIndexState>();
     var successCount = 0;
 
     await tester.pumpWidget(
@@ -36,7 +36,7 @@ void main() {
   });
 
   testWidgets('index errors expose a retry action', (tester) async {
-    final controllers = <StreamController<IndexActionState>>[];
+    final controllers = <StreamController<LibraryIndexState>>[];
     var buildCount = 0;
 
     await tester.pumpWidget(
@@ -47,7 +47,7 @@ void main() {
             folders: const [],
             buildIndex: ({required folders, required indexPath}) {
               buildCount += 1;
-              final controller = StreamController<IndexActionState>();
+              final controller = StreamController<LibraryIndexState>();
               controllers.add(controller);
               return controller.stream;
             },
@@ -77,7 +77,7 @@ void main() {
             indexPath: Directory.systemTemp,
             folders: const [],
             buildIndex: ({required folders, required indexPath}) =>
-                const Stream<IndexActionState>.empty(),
+                const Stream<LibraryIndexState>.empty(),
             whenIndexBuilt: () => throw StateError('load failed'),
           ),
         ),

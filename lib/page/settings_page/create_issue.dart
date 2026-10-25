@@ -9,7 +9,6 @@ import 'package:pure_music/component/settings_tile.dart';
 import 'package:pure_music/core/hotkeys.dart';
 import 'package:pure_music/play_service/audio_echo_log_recorder.dart';
 import 'package:pure_music/play_service/play_service.dart';
-import 'package:pure_music/native/rust/api/utils.dart' as rust_utils;
 import 'package:pure_music/core/log/issue_crash.dart';
 import 'package:pure_music/core/log/issue_report.dart';
 import 'package:pure_music/core/log/issue_timeline.dart';
@@ -22,6 +21,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pure_music/core/paths.dart' as app_paths;
 import 'package:flutter/services.dart';
+import 'package:pure_music/services/native/platform_service.dart';
 
 const bool enableIssueReporting = bool.fromEnvironment(
   'ENABLE_ISSUE_REPORTING',
@@ -374,7 +374,9 @@ class _SettingsIssuePageState extends State<SettingsIssuePage> {
           windowsVersion: Platform.operatingSystemVersion,
         ),
       );
-      final opened = await rust_utils.launchInBrowser(uri: uri.toString());
+      final opened = await PlatformService.instance.launchInBrowser(
+        uri.toString(),
+      );
       if (!opened) {
         showTextOnSnackBar('打开链接失败');
       } else if (copiedLog) {

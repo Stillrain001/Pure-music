@@ -1,12 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' as frb;
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
-import 'package:pure_music/native/rust/api/library_db.dart' as library_db;
 import 'package:pure_music/native/rust/frb_generated.dart';
 import 'package:pure_music/services/backup_service.dart';
+import 'package:pure_music/services/native/playback_stats_service.dart';
 
 void main() {
   setUpAll(() async {
@@ -25,12 +24,12 @@ void main() {
         'pure_music_history_dst_',
       );
       try {
-        await library_db.importPlayHistory(
+        await PlaybackStatsService.instance.importPlayHistory(
           indexPath: source.path,
-          entries: [
-            library_db.PlayHistoryEntry(
+          entries: const [
+            PlayHistoryRecord(
               path: 'C:/music/example.mp3',
-              playedAt: frb.Int64List.fromList([1700000000, 1700000600]),
+              playedAt: [1700000000, 1700000600],
             ),
           ],
           overwrite: true,
@@ -49,15 +48,12 @@ void main() {
         );
         expect(imported, contains(BackupCategory.playHistory));
 
-        final entries = await library_db.exportPlayHistory(
+        final entries = await PlaybackStatsService.instance.exportPlayHistory(
           indexPath: target.path,
         );
         expect(entries, hasLength(1));
         expect(entries.single.path, 'C:/music/example.mp3');
-        expect(entries.single.playedAt.map((t) => t.toInt()).toList(), [
-          1700000000,
-          1700000600,
-        ]);
+        expect(entries.single.playedAt, [1700000000, 1700000600]);
       } finally {
         await source.delete(recursive: true);
         await target.delete(recursive: true);

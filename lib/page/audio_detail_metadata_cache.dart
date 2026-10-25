@@ -1,9 +1,8 @@
 import 'package:pure_music/library/audio_library.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart'
-    as rust_tag_reader;
+import 'package:pure_music/services/native/media_metadata_service.dart';
 
 typedef AudioDetailMetadataLoader =
-    Future<rust_tag_reader.AudioExtraMetadata> Function(Audio audio);
+    Future<AudioExtraMetadata> Function(Audio audio);
 
 class AudioDetailMetadataCache {
   AudioDetailMetadataCache({required this.loader, this.maxEntries = 64})
@@ -12,17 +11,17 @@ class AudioDetailMetadataCache {
   final AudioDetailMetadataLoader loader;
   final int maxEntries;
 
-  final _completed = <String, rust_tag_reader.AudioExtraMetadata>{};
-  final _inFlight = <String, Future<rust_tag_reader.AudioExtraMetadata>>{};
+  final _completed = <String, AudioExtraMetadata>{};
+  final _inFlight = <String, Future<AudioExtraMetadata>>{};
   final _keyVersions = <String, int>{};
   int _epoch = 0;
 
-  Future<rust_tag_reader.AudioExtraMetadata> get(Audio audio) {
+  Future<AudioExtraMetadata> get(Audio audio) {
     final key = cacheKey(audio);
     final completed = _completed.remove(key);
     if (completed != null) {
       _completed[key] = completed;
-      return Future<rust_tag_reader.AudioExtraMetadata>.value(completed);
+      return Future<AudioExtraMetadata>.value(completed);
     }
 
     final existing = _inFlight[key];
@@ -30,7 +29,7 @@ class AudioDetailMetadataCache {
 
     final epoch = _epoch;
     final keyVersion = _keyVersions[key] ?? 0;
-    late final Future<rust_tag_reader.AudioExtraMetadata> future;
+    late final Future<AudioExtraMetadata> future;
     future = loader(audio).then(
       (metadata) {
         if (identical(_inFlight[key], future)) {
@@ -78,9 +77,9 @@ class AudioDetailMetadataCache {
 }
 
 Future<bool> applyAudioDetailMetadataIfMounted({
-  required Future<rust_tag_reader.AudioExtraMetadata> future,
+  required Future<AudioExtraMetadata> future,
   required bool Function() isMounted,
-  required void Function(rust_tag_reader.AudioExtraMetadata metadata) apply,
+  required void Function(AudioExtraMetadata metadata) apply,
 }) async {
   final metadata = await future;
   if (!isMounted()) return false;

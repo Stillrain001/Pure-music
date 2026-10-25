@@ -49,7 +49,7 @@ import 'package:pure_music/page/now_playing_page/component/now_playing_small_vie
 import 'package:pure_music/core/paths.dart' as app_paths;
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/native/bass/bass_player.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
@@ -225,14 +225,14 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     late final Uint8List? loadedBytes;
     late final List<int> rustColors;
     try {
-      final result = await getPictureAndColors(
+      final result = await MediaMetadataService.instance.getPictureAndColors(
         path: path,
         width: 160,
         height: 160,
         numColors: 8,
       );
-      loadedBytes = result.$1;
-      rustColors = result.$2;
+      loadedBytes = result.bytes;
+      rustColors = result.colors;
       if (loadedBytes != null) {
         CoverImageCache.instance.putDecodedBytes(
           path: path,
@@ -2653,7 +2653,10 @@ class _PlaybackCoverMotionState extends State<_PlaybackCoverMotion>
   bool _isSettling = false;
   int _rotationMemoryGeneration = 0;
 
-  bool get _isPlaying => _playerState == PlayerState.playing;
+  bool get _rotationCanContinue =>
+      _playerState == PlayerState.playing ||
+      (_playerState == PlayerState.stalled &&
+          playback.nowPlayingChangedRecently);
 
   @override
   void initState() {
@@ -2697,7 +2700,7 @@ class _PlaybackCoverMotionState extends State<_PlaybackCoverMotion>
       return;
     }
 
-    if (_isPlaying) {
+    if (_rotationCanContinue) {
       if (_isSettling) {
         _rotationController.stop(canceled: false);
         _isSettling = false;
