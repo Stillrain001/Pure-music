@@ -12,6 +12,7 @@ import 'package:pure_music/core/workload_policy.dart';
 import 'package:pure_music/library/audio_library.dart';
 import 'package:pure_music/native/rust/api/library_db.dart' as library_db;
 import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/remote/remote_library.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -417,7 +418,7 @@ class _LruMap<K, V> {
     while (_map.length >= maxSize) {
       final oldestKey = _map.keys.first;
       final evicted = _map.remove(oldestKey);
-      if (evicted != null) _discard(oldestKey, evicted, evict: false);
+      if (evicted != null) _discard(oldestKey, evicted, evict: true);
     }
     _map[key] = value;
   }
@@ -447,7 +448,7 @@ class _LruMap<K, V> {
     while (_map.length > size) {
       final oldestKey = _map.keys.first;
       final removed = _map.remove(oldestKey);
-      if (removed != null) _discard(oldestKey, removed, evict: false);
+      if (removed != null) _discard(oldestKey, removed, evict: true);
     }
   }
 }
@@ -882,6 +883,9 @@ class CoverImageCache {
     try {
       final indexPath = _indexPath;
       final maxPhysical = max(physicalWidth, physicalHeight);
+      if (RemoteLibrary.isRemotePath(path)) {
+        return RemoteLibrary.instance.coverBytes(path, maxPhysical);
+      }
       if (indexPath != null && maxPhysical > 96) {
         try {
           return await library_db.getCachedCover(

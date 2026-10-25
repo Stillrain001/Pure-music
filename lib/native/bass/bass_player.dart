@@ -1,6 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:math' as math;
@@ -13,6 +14,7 @@ import 'package:pure_music/native/bass/bass.dart' as bass;
 import 'package:pure_music/native/bass/bass_fx.dart';
 import 'package:pure_music/native/bass/bass_mix.dart';
 import 'package:pure_music/native/bass/bass_wasapi.dart' as bass_wasapi;
+import 'package:pure_music/native/bass/bass_url.dart';
 import 'package:pure_music/core/utils.dart';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
@@ -141,6 +143,7 @@ class BassPlayer {
   late final ffi.DynamicLibrary _bassLib;
   late final ffi.DynamicLibrary _bassWasapiLib;
   late final bass.Bass _bass;
+  late final BassUrl _bassUrl;
   late final bass_wasapi.BassWasapi _bassWasapi;
   ffi.DynamicLibrary? _bassFxLib;
   BassFx? _bassFx;
@@ -2122,6 +2125,7 @@ class BassPlayer {
     }
     _bassLib = bassLib;
     _bass = bass.Bass(bassLib);
+    _bassUrl = BassUrl(bassLib);
     try {
       _bassChannelGetData = bassLib
           .lookupFunction<
@@ -2327,15 +2331,23 @@ class BassPlayer {
         bass.BASS_SAMPLE_FLOAT |
         bass.BASS_ASYNCFILE |
         bass.BASS_STREAM_DECODE;
-    final pathPointer = audioPath.toNativeUtf16() as ffi.Pointer<ffi.Void>;
-    var handle = _bass.BASS_StreamCreateFile(
-      bass.FALSE,
-      pathPointer,
-      0,
-      0,
-      flags,
-    );
-    malloc.free(pathPointer);
+    var handle = 0;
+    if (_isUrl(audioPath)) {
+      handle = _createUrlStream(
+        audioPath,
+        flags: bass.BASS_SAMPLE_FLOAT | bass.BASS_STREAM_DECODE,
+      );
+    } else {
+      final pathPointer = audioPath.toNativeUtf16() as ffi.Pointer<ffi.Void>;
+      handle = _bass.BASS_StreamCreateFile(
+        bass.FALSE,
+        pathPointer,
+        0,
+        0,
+        flags,
+      );
+      malloc.free(pathPointer);
+    }
     if (handle == 0) return 0;
 
     if (_bassFx != null) {
@@ -2361,9 +2373,6 @@ class BassPlayer {
   }
 
   int _createDirectSharedStream(String audioPath) {
-    const playableFlags =
-        bass.BASS_UNICODE | bass.BASS_SAMPLE_FLOAT | bass.BASS_ASYNCFILE;
-
     if (_bassFx != null) {
       final source = _createDecodeStream(audioPath);
       if (source != 0) {
@@ -2399,6 +2408,15 @@ class BassPlayer {
       }
     }
 
+    if (_isUrl(audioPath)) {
+      return _createUrlStream(
+        audioPath,
+        flags: bass.BASS_SAMPLE_FLOAT,
+      );
+    }
+
+    const playableFlags =
+        bass.BASS_UNICODE | bass.BASS_SAMPLE_FLOAT | bass.BASS_ASYNCFILE;
     final pathPointer = audioPath.toNativeUtf16() as ffi.Pointer<ffi.Void>;
     final handle = _bass.BASS_StreamCreateFile(
       bass.FALSE,
@@ -3362,7 +3380,38 @@ class BassPlayer {
     _logAudioState('_rebuildStream(done)');
   }
 
+  static bool _isUrl(String value) {
+    final lower = value.toLowerCase();
+    return lower.startsWith('http://') || lower.startsWith('https://');
+  }
+
+  int _createUrlStream(String url, {required int flags}) {
+    final handle = _bassUrl.streamCreateUrl(url, flags: flags);
+    if (handle == 0) {
+      log.bass.warn(
+        'legacy',
+        '[bass] URL stream failed: ${_redactUrlForLog(url)}',
+      );
+    }
+    return handle;
+  }
+
+  static String _redactUrlForLog(String url) {
+    final newline = url.indexOf('\r\n');
+    final address = newline < 0 ? url : url.substring(0, newline);
+    final uri = Uri.tryParse(address);
+    if (uri == null || uri.host.isEmpty) return '<url>';
+    final port = uri.hasPort ? ':${uri.port}' : '';
+    return '${uri.scheme}://${uri.host}$port${uri.path}';
+  }
+
   int _createDecodeStream(String path) {
+    if (_isUrl(path)) {
+      return _createUrlStream(
+        path,
+        flags: bass.BASS_SAMPLE_FLOAT | bass.BASS_STREAM_DECODE,
+      );
+    }
     const flags =
         bass.BASS_UNICODE |
         bass.BASS_SAMPLE_FLOAT |

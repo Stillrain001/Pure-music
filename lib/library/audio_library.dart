@@ -2130,7 +2130,11 @@ class AudioLibrary {
     );
   }
 
+  static Audio? Function(String path)? remoteAudioResolver;
+
   Audio? audioByPath(String path) {
+    final remote = remoteAudioResolver?.call(path);
+    if (remote != null) return remote;
     final key = _audioPathLookupKey(path);
     if (key.isEmpty) return null;
     return _audioByPath[key];
@@ -2222,6 +2226,7 @@ class AudioLibrary {
           audio._mediumCoverImage?.target == null &&
           audio._largeCoverImage?.target == null &&
           audio._smallCoverBytes == null) {
+        CoverImageCache.instance.evictPath(path);
         _coverCachePaths.remove(path);
         continue;
       }
@@ -3004,12 +3009,7 @@ class Audio {
         _smallCoverBytes == null) {
       return false;
     }
-    _coverImage = null;
-    _mediumCoverImage = null;
-    _largeCoverImage = null;
-    _smallCoverBytes = null;
-    AudioLibrary.instance._smallCoverOrder.remove(path);
-    AudioLibrary.instance._coverCachePaths.remove(path);
+    evictCoverCache();
     return true;
   }
 
@@ -3037,6 +3037,7 @@ class Audio {
         _mediumCoverImage?.target == null &&
         _largeCoverImage?.target == null &&
         _smallCoverBytes == null) {
+      CoverImageCache.instance.evictPath(path);
       AudioLibrary.instance._coverCachePaths.remove(path);
     }
   }
