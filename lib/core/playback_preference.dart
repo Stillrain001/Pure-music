@@ -25,6 +25,12 @@ class PlaybackPreference {
   int transitionFadeOutMs;
   int transitionFadeInMs;
 
+  /// 共享模式选定的输出设备 key；空字符串表示跟随系统默认设备。
+  String sharedOutputDevice;
+
+  /// WASAPI 独占模式选定的输出设备 key；空字符串表示跟随系统默认设备。
+  String wasapiOutputDevice;
+
   PlaybackPreference(
     this.playMode,
     this.volumeDsp,
@@ -49,6 +55,8 @@ class PlaybackPreference {
     this.transitionMode = TransitionMode.seamless,
     this.transitionFadeOutMs = 300,
     this.transitionFadeInMs = 200,
+    this.sharedOutputDevice = '',
+    this.wasapiOutputDevice = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -75,6 +83,8 @@ class PlaybackPreference {
     'transitionMode': transitionMode.name,
     'transitionFadeOutMs': transitionFadeOutMs,
     'transitionFadeInMs': transitionFadeInMs,
+    'sharedOutputDevice': sharedOutputDevice,
+    'wasapiOutputDevice': wasapiOutputDevice,
   };
 
   factory PlaybackPreference.fromMap(Object? value) {
@@ -82,6 +92,9 @@ class PlaybackPreference {
         ? value
         : const <String, dynamic>{};
     final session = _sessionFromMap(map);
+    final legacyOutputDevice = _normalizedOutputDeviceName(
+      map['audioOutputDevice'],
+    );
     final eq = _eqFromMap(map);
     final transition = _transitionFromMap(map);
     return PlaybackPreference(
@@ -108,7 +121,19 @@ class PlaybackPreference {
       transitionMode: transition.mode,
       transitionFadeOutMs: transition.fadeOutMs,
       transitionFadeInMs: transition.fadeInMs,
+      sharedOutputDevice: _normalizedOutputDeviceName(
+        map['sharedOutputDevice'] ?? legacyOutputDevice,
+      ),
+      wasapiOutputDevice: _normalizedOutputDeviceName(
+        map['wasapiOutputDevice'] ?? legacyOutputDevice,
+      ),
     );
+  }
+
+  static String _normalizedOutputDeviceName(Object? value) {
+    if (value is! String) return '';
+    final trimmed = value.trim();
+    return trimmed.length > 256 ? trimmed.substring(0, 256) : trimmed;
   }
 
   static ({

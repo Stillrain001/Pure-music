@@ -36,6 +36,7 @@ import 'package:pure_music/page/settings_page/hotkey_settings.dart'
     show HotkeySettingsPanel, GlobalHotkeySettingsPanel;
 import 'package:pure_music/page/settings_page/lastfm_settings.dart';
 import 'package:pure_music/page/settings_page/backup_settings.dart';
+import 'package:pure_music/page/settings_page/audio_output_settings.dart';
 import 'package:pure_music/page/settings_page/other_settings.dart'
     show
         AudioEchoLogRecordControl,
@@ -1895,7 +1896,7 @@ class _PlaybackTabContent extends StatelessWidget {
         _GroupEntry(
           icon: Symbols.play_circle,
           title: '播放行为',
-          subtitle: '进度记忆、ReplayGain、片头空白、MIDI 与切歌过渡',
+          subtitle: '进度记忆、ReplayGain、片头空白、MIDI、切歌过渡与输出设备',
           groupId: 'playback-behavior',
         ),
         SizedBox(height: 8.0),
@@ -3614,7 +3615,7 @@ const _settingsGroups = <String, _SettingsGroupDesc>{
   'lyric-effect': _SettingsGroupDesc('显示效果', '辉光、注音、上抬', _LyricEffectGroup()),
   'playback-behavior': _SettingsGroupDesc(
     '播放行为',
-    '进度记忆、ReplayGain、片头空白、MIDI 与切歌过渡',
+    '进度记忆、ReplayGain、片头空白、MIDI、切歌过渡与输出设备',
     _PlaybackBehaviorGroup(),
   ),
   'playback-lastfm': _SettingsGroupDesc(
@@ -4349,6 +4350,8 @@ class _PlaybackBehaviorGroup extends StatelessWidget {
         MidiSoundfontControl(),
         SizedBox(height: 16.0),
         TransitionControl(),
+        SizedBox(height: 16.0),
+        AudioOutputSettingsPanel(),
       ],
     );
   }

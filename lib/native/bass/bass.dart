@@ -130,6 +130,21 @@ final class BASS_INFO extends ffi.Struct {
   external int freq;
 }
 
+/// BASS_DEVICEINFO.flags
+const int BASS_DEVICE_ENABLED = 1;
+const int BASS_DEVICE_DEFAULT = 2;
+const int BASS_DEVICE_INIT = 4;
+const int BASS_DEVICE_LOOPBACK = 8;
+
+final class BASS_DEVICEINFO extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> name;
+
+  external ffi.Pointer<ffi.Char> driver;
+
+  @ffi.UnsignedLong()
+  external int flags;
+}
+
 const int BASS_FX_DX8_PARAMEQ = 3;
 
 const int BASS_FX_BFX_ROTATE = 0x10000;
@@ -527,6 +542,38 @@ class Bass {
       );
   late final _BASS_GetInfo =
       _BASS_GetInfoPtr.asFunction<int Function(ffi.Pointer<BASS_INFO>)>();
+
+  int BASS_GetDeviceInfo(int device, ffi.Pointer<BASS_DEVICEINFO> info) {
+    return _BASS_GetDeviceInfo(device, info);
+  }
+
+  late final _BASS_GetDeviceInfoPtr =
+      _lookup<
+        ffi.NativeFunction<BOOL Function(DWORD, ffi.Pointer<BASS_DEVICEINFO>)>
+      >('BASS_GetDeviceInfo');
+  late final _BASS_GetDeviceInfo =
+      _BASS_GetDeviceInfoPtr.asFunction<
+        int Function(int, ffi.Pointer<BASS_DEVICEINFO>)
+      >();
+
+  int BASS_GetDevice() {
+    return _BASS_GetDevice();
+  }
+
+  late final _BASS_GetDevicePtr = _lookup<ffi.NativeFunction<DWORD Function()>>(
+    'BASS_GetDevice',
+  );
+  late final _BASS_GetDevice =
+      _BASS_GetDevicePtr.asFunction<int Function()>();
+
+  int BASS_SetDevice(int device) {
+    return _BASS_SetDevice(device);
+  }
+
+  late final _BASS_SetDevicePtr =
+      _lookup<ffi.NativeFunction<BOOL Function(DWORD)>>('BASS_SetDevice');
+  late final _BASS_SetDevice =
+      _BASS_SetDevicePtr.asFunction<int Function(int)>();
 
   int BASS_ChannelGetAttribute(
     int handle,

@@ -21,6 +21,36 @@ const int BASS_WASAPI_FORMAT_16BIT = 2;
 const int BASS_WASAPI_FORMAT_24BIT = 3;
 const int BASS_WASAPI_FORMAT_32BIT = 4;
 
+/// BASS_WASAPI_DEVICEINFO.flags（BASS_DEVICE_DEFAULT 与 BASS 侧同值）
+const int BASS_WASAPI_DEVICE_ENABLED = 1;
+const int BASS_WASAPI_DEVICE_DEFAULT = 2;
+const int BASS_WASAPI_DEVICE_INPUT = 4;
+const int BASS_WASAPI_DEVICE_LOOPBACK = 8;
+
+final class BASS_WASAPI_DEVICEINFO extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> name;
+
+  external ffi.Pointer<ffi.Char> id;
+
+  @ffi.UnsignedLong()
+  external int type;
+
+  @ffi.UnsignedLong()
+  external int flags;
+
+  @ffi.Float()
+  external double minperiod;
+
+  @ffi.Float()
+  external double defperiod;
+
+  @ffi.UnsignedLong()
+  external int mixfreq;
+
+  @ffi.UnsignedLong()
+  external int mixchans;
+}
+
 const int BASS_DATA_AVAILABLE = 0;
 
 // FFT flags (same as BASS_ChannelGetData flags, used with BASS_WASAPI_GetData)
@@ -35,9 +65,7 @@ const int BASS_DATA_FFT16384 = 0x80000006;
 const int BASS_DATA_FFT_NOWINDOW = 0x20000000;
 const int BASS_DATA_FFT_INDIVIDUAL = 0x10000000;
 
-const int BASS_ERROR_WASAPI = 5000;
-
-const int BASS_ERROR_WASAPI_BUFFER = 5001;
+const int BASS_ERROR_WASAPI = 5000;const int BASS_ERROR_WASAPI_BUFFER = 5001;
 
 const int BASS_ERROR_WASAPI_CATEGORY = 5002;
 
@@ -197,6 +225,44 @@ class BassWasapi {
       _BASS_WASAPI_GetInfoPtr.asFunction<
         int Function(ffi.Pointer<BASS_WASAPI_INFO>)
       >();
+
+  int BASS_WASAPI_GetDeviceInfo(
+    int device,
+    ffi.Pointer<BASS_WASAPI_DEVICEINFO> info,
+  ) {
+    return _BASS_WASAPI_GetDeviceInfo(device, info);
+  }
+
+  late final _BASS_WASAPI_GetDeviceInfoPtr =
+      _lookup<
+        ffi.NativeFunction<
+          BOOL Function(DWORD, ffi.Pointer<BASS_WASAPI_DEVICEINFO>)
+        >
+      >('BASS_WASAPI_GetDeviceInfo');
+  late final _BASS_WASAPI_GetDeviceInfo =
+      _BASS_WASAPI_GetDeviceInfoPtr.asFunction<
+        int Function(int, ffi.Pointer<BASS_WASAPI_DEVICEINFO>)
+      >();
+
+  int BASS_WASAPI_GetDevice() {
+    return _BASS_WASAPI_GetDevice();
+  }
+
+  late final _BASS_WASAPI_GetDevicePtr =
+      _lookup<ffi.NativeFunction<DWORD Function()>>('BASS_WASAPI_GetDevice');
+  late final _BASS_WASAPI_GetDevice =
+      _BASS_WASAPI_GetDevicePtr.asFunction<int Function()>();
+
+  int BASS_WASAPI_SetDevice(int device) {
+    return _BASS_WASAPI_SetDevice(device);
+  }
+
+  late final _BASS_WASAPI_SetDevicePtr =
+      _lookup<ffi.NativeFunction<BOOL Function(DWORD)>>(
+        'BASS_WASAPI_SetDevice',
+      );
+  late final _BASS_WASAPI_SetDevice =
+      _BASS_WASAPI_SetDevicePtr.asFunction<int Function(int)>();
 
   int BASS_WASAPI_GetData(ffi.Pointer<ffi.Void> buffer, int length) {
     return _BASS_WASAPI_GetData(buffer, length);

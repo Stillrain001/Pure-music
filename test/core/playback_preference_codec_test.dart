@@ -40,4 +40,26 @@ void main() {
       'track',
     );
   });
+
+  test('output devices are remembered independently by playback mode', () {
+    final preference = PlaybackPreferenceCodec.decode({
+      'sharedOutputDevice': 'shared:realtek',
+      'wasapiOutputDevice': 'wasapi:usb-dac',
+    });
+
+    expect(preference.sharedOutputDevice, 'shared:realtek');
+    expect(preference.wasapiOutputDevice, 'wasapi:usb-dac');
+    final encoded = PlaybackPreferenceCodec.encode(preference);
+    expect(encoded['sharedOutputDevice'], 'shared:realtek');
+    expect(encoded['wasapiOutputDevice'], 'wasapi:usb-dac');
+  });
+
+  test('legacy output device value migrates to both playback modes', () {
+    final preference = PlaybackPreferenceCodec.decode({
+      'audioOutputDevice': 'Legacy Device',
+    });
+
+    expect(preference.sharedOutputDevice, 'Legacy Device');
+    expect(preference.wasapiOutputDevice, 'Legacy Device');
+  });
 }

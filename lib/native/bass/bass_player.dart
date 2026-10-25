@@ -85,6 +85,49 @@ final class SmartTransitionPreparation {
   final double? replayGainDb;
 }
 
+/// 一个可选的音频输出设备。
+///
+/// [name] 用于界面展示和持久化匹配；[id] 仅 WASAPI 提供，是稳定的端点标识；
+/// [driver] 仅共享模式提供，是驱动名。序号 [index] 会随设备增减和重启变化，不要持久化。
+class AudioOutputDevice {
+  const AudioOutputDevice({
+    required this.index,
+    required this.name,
+    required this.isDefault,
+    required this.key,
+    this.id = '',
+    this.driver = '',
+  });
+
+  final int index;
+  final String name;
+  final bool isDefault;
+  final String key;
+  final String id;
+  final String driver;
+
+  @override
+  String toString() => 'AudioOutputDevice($index, $name, default=$isDefault)';
+}
+
+enum AudioOutputApplyStatus { applied, fellBackToDefault, failed }
+
+class AudioOutputApplyResult {
+  const AudioOutputApplyResult({
+    required this.status,
+    required this.requestedKey,
+    required this.activeKey,
+    this.error,
+  });
+
+  final AudioOutputApplyStatus status;
+  final String requestedKey;
+  final String activeKey;
+  final Object? error;
+
+  bool get succeeded => status != AudioOutputApplyStatus.failed;
+}
+
 class BassPlayer {
   static const _eqFxPriority = 1000;
   static const _highPassFxPriority = 900;
@@ -219,6 +262,279 @@ class BassPlayer {
       conflicts.add('音调不是 0 半音');
     }
     return List.unmodifiable(conflicts);
+  }
+
+  /// 共享模式（BASS）输出设备列表；跳过 0 号“无声音”设备。
+  List<AudioOutputDevice> listSharedOutputDevices() {
+    final devices = <AudioOutputDevice>[];
+    final info = calloc<bass.BASS_DEVICEINFO>();
+    try {
+      for (var index = 1; ; index++) {
+        if (_bass.BASS_GetDeviceInfo(index, info) == 0) break;
+        final flags = info.ref.flags;
+        if (flags & bass.BASS_DEVICE_ENABLED == 0) continue;
+        devices.add(
+          AudioOutputDevice(
+            index: index,
+            name: _readBassAnsi(info.ref.name),
+            key: _sharedDeviceKey(
+              _readBassAnsi(info.ref.driver),
+              _readBassAnsi(info.ref.name),
+            ),
+            driver: _readBassAnsi(info.ref.driver),
+            isDefault: flags & bass.BASS_DEVICE_DEFAULT != 0,
+          ),
+        );
+      }
+    } finally {
+      calloc.free(info);
+    }
+    return devices;
+  }
+
+  /// 独占模式（WASAPI）输出设备列表；只保留可用的输出设备。
+  List<AudioOutputDevice> listWasapiOutputDevices() {
+    final devices = <AudioOutputDevice>[];
+    final info = calloc<bass_wasapi.BASS_WASAPI_DEVICEINFO>();
+    try {
+      for (var index = 0; ; index++) {
+        if (_bassWasapi.BASS_WASAPI_GetDeviceInfo(index, info) == 0) break;
+        final flags = info.ref.flags;
+        if (flags & bass_wasapi.BASS_WASAPI_DEVICE_ENABLED == 0) continue;
+        if (flags & bass_wasapi.BASS_WASAPI_DEVICE_INPUT != 0) continue;
+        if (flags & bass_wasapi.BASS_WASAPI_DEVICE_LOOPBACK != 0) continue;
+        devices.add(
+          AudioOutputDevice(
+            index: index,
+            name: _readBassAnsi(info.ref.name),
+            key: _wasapiDeviceKey(_readBassAnsi(info.ref.id), _readBassAnsi(info.ref.name)),
+            id: _readBassAnsi(info.ref.id),
+            isDefault: flags & bass_wasapi.BASS_WASAPI_DEVICE_DEFAULT != 0,
+          ),
+        );
+      }
+    } finally {
+      calloc.free(info);
+    }
+    return devices;
+  }
+
+  static String _readBassAnsi(ffi.Pointer<ffi.Char> pointer) {
+    if (pointer == ffi.nullptr) return '';
+
+    if (Platform.isWindows) {
+      try {
+        final kernel32 = ffi.DynamicLibrary.open('kernel32.dll');
+        final multiByteToWideChar = kernel32.lookupFunction<
+          ffi.Int32 Function(
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+            ffi.Pointer<Utf16>,
+            ffi.Int32,
+          ),
+          int Function(
+            int,
+            int,
+            ffi.Pointer<ffi.Char>,
+            int,
+            ffi.Pointer<Utf16>,
+            int,
+          )
+        >('MultiByteToWideChar');
+        final length = multiByteToWideChar(
+          0, // CP_ACP: Windows 当前系统代码页（中文系统通常是 GBK）
+          0,
+          pointer,
+          -1,
+          ffi.nullptr,
+          0,
+        );
+        if (length > 1) {
+          final wideUnits = calloc<ffi.Uint16>(length);
+          final wide = wideUnits.cast<Utf16>();
+          try {
+            final written = multiByteToWideChar(
+              0,
+              0,
+              pointer,
+              -1,
+              wide,
+              length,
+            );
+            if (written > 0) return wide.toDartString();
+          } finally {
+            calloc.free(wideUnits);
+          }
+        }
+      } catch (_) {
+        // 非 Windows 环境或系统 API 不可用时走 UTF-8 兜底。
+      }
+    }
+
+    final bytes = <int>[];
+    final bytePointer = pointer.cast<ffi.Uint8>();
+    for (var index = 0; index < 1024; index++) {
+      final byte = (bytePointer + index).value;
+      if (byte == 0) break;
+      bytes.add(byte);
+    }
+    return utf8.decode(bytes, allowMalformed: true);
+  }
+
+  static String _normalizeDeviceKey(String value) => value.trim().toLowerCase();
+
+  static String _sharedDeviceKey(String driver, String name) =>
+      'shared:${_normalizeDeviceKey(driver)}\u0000${_normalizeDeviceKey(name)}';
+
+  static String _wasapiDeviceKey(String id, String name) =>
+      'wasapi:${_normalizeDeviceKey(id.isNotEmpty ? id : name)}';
+
+  /// 返回 null 表示已选择但当前不存在，-1 表示系统默认。
+  int? _resolveSharedDeviceIndex(String key) {
+    final target = _normalizeDeviceKey(key);
+    if (target.isEmpty) return -1;
+    for (final device in listSharedOutputDevices()) {
+      if (_normalizeDeviceKey(device.key) == target ||
+          _normalizeDeviceKey(device.name) == target) {
+        return device.index;
+      }
+    }
+    return null;
+  }
+
+  /// 返回 null 表示已选择但当前不存在，-1 表示系统默认。
+  int? _resolveWasapiDeviceIndex(String key) {
+    final target = _normalizeDeviceKey(key);
+    if (target.isEmpty) return -1;
+    for (final device in listWasapiOutputDevices()) {
+      if (_normalizeDeviceKey(device.key) == target ||
+          _normalizeDeviceKey(device.name) == target) {
+        return device.index;
+      }
+    }
+    return null;
+  }
+
+  /// 切换输出设备并保存设置；正在播放时保留播放位置重建输出。
+  ///
+  /// 返回是否已达到期望的输出模式。设备名不存在时按系统默认设备初始化。
+  AudioOutputApplyResult applyOutputDevice(String deviceKey) {
+    final normalized = _normalizeDeviceKey(deviceKey);
+    final pref = AppPreference.instance.playbackPref;
+    final wasExclusive = wasapiExclusive;
+    final previous = wasExclusive
+        ? pref.wasapiOutputDevice
+        : pref.sharedOutputDevice;
+    if (previous == normalized) {
+      return AudioOutputApplyResult(
+        status: AudioOutputApplyStatus.applied,
+        requestedKey: normalized,
+        activeKey: previous,
+      );
+    }
+
+    final resolved = wasExclusive
+        ? _resolveWasapiDeviceIndex(normalized)
+        : _resolveSharedDeviceIndex(normalized);
+    final fellBack = normalized.isNotEmpty && resolved == null;
+    final effective = fellBack ? '' : normalized;
+    if (wasExclusive) {
+      pref.wasapiOutputDevice = effective;
+    } else {
+      pref.sharedOutputDevice = effective;
+    }
+
+    final path = _fPath;
+    final lastPos = position;
+    final wasPlaying = playerState == PlayerState.playing;
+
+    try {
+      // 独占模式：先退回共享（按新设备重新初始化），再重新进入独占。
+      if (wasExclusive && path != null) {
+        if (!useExclusiveMode(false) || !useExclusiveMode(true)) {
+          throw const FormatException('无法切换 WASAPI 输出设备');
+        }
+      } else {
+        if (wasExclusive) {
+          _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
+          _bassWasapi.BASS_WASAPI_Free();
+          _wasapiOutputInfo = 'off';
+          wasapiExclusive = false;
+          _streamWasapiExclusive = false;
+          onExclusiveModeChanged?.call(false);
+        }
+        // BASS_Free() 会释放所有句柄，必须先拆掉旧流再重新初始化设备。
+        final oldStream = _fstream;
+        if (oldStream != null) {
+          _bass.BASS_ChannelStop(oldStream);
+          _bass.BASS_StreamFree(oldStream);
+          _fstream = null;
+        }
+        _bassInit();
+        if (path != null) {
+          _positionUpdaterVersion++;
+          _positionUpdater?.cancel();
+          _positionUpdater = null;
+          _createSharedStream(path, lastPos, startPlayback: wasPlaying);
+        }
+      }
+      unawaited(AppPreference.instance.save());
+      return AudioOutputApplyResult(
+        status: fellBack
+            ? AudioOutputApplyStatus.fellBackToDefault
+            : AudioOutputApplyStatus.applied,
+        requestedKey: normalized,
+        activeKey: effective,
+      );
+    } catch (error, trace) {
+      if (wasExclusive) {
+        pref.wasapiOutputDevice = previous;
+      } else {
+        pref.sharedOutputDevice = previous;
+      }
+      try {
+        if (wasExclusive) {
+          if (!wasapiExclusive && path != null) {
+            useExclusiveMode(true);
+          }
+        } else {
+          final failedStream = _fstream;
+          if (failedStream != null) {
+            _bass.BASS_ChannelStop(failedStream);
+            _bass.BASS_StreamFree(failedStream);
+            _fstream = null;
+          }
+          _bassInit();
+          if (path != null) {
+            _positionUpdaterVersion++;
+            _positionUpdater?.cancel();
+            _positionUpdater = null;
+            _createSharedStream(path, lastPos, startPlayback: wasPlaying);
+          }
+        }
+      } catch (restoreError, restoreTrace) {
+        log.bass.error(
+          'legacy',
+          '[bass] output device rollback failed',
+          error: restoreError,
+          stackTrace: restoreTrace,
+        );
+      }
+      log.bass.error(
+        'legacy',
+        '[bass] output device switch failed',
+        error: error,
+        stackTrace: trace,
+      );
+      return AudioOutputApplyResult(
+        status: AudioOutputApplyStatus.failed,
+        requestedKey: normalized,
+        activeKey: previous,
+        error: error,
+      );
+    }
   }
 
   /// 是否启用 wasapi 独占模式
@@ -1601,7 +1917,24 @@ class BassPlayer {
     if (resetHandles) _resetBassHandles();
     _applyOutputBufferConfig();
 
-    if (_bass.BASS_Init(-1, 44100, 0, ffi.nullptr, ffi.nullptr) == 0) {
+    final savedDevice =
+        AppPreference.instance.playbackPref.sharedOutputDevice;
+    final resolvedDevice = _resolveSharedDeviceIndex(savedDevice);
+    final outputDevice = resolvedDevice ?? -1;
+    if (savedDevice.isNotEmpty && resolvedDevice == null) {
+      log.bass.warn(
+        'legacy',
+        '[bass] shared output device is unavailable, using system default',
+      );
+    }
+    if (_bass.BASS_Init(
+          outputDevice,
+          44100,
+          0,
+          ffi.nullptr,
+          ffi.nullptr,
+        ) ==
+        0) {
       switch (_bass.BASS_ErrorGetCode()) {
         case bass.BASS_ERROR_DEVICE:
           throw const FormatException('device is invalid.');
@@ -3448,10 +3781,20 @@ class BassPlayer {
     const initFreq = 0; // 让 WASAPI 自动选择合适的采样率
 
     // WASAPI 初始化重试机制：最多重试 3 次以解决 BASS_ERROR_BUSY
+    final savedDevice =
+        AppPreference.instance.playbackPref.wasapiOutputDevice;
+    final resolvedDevice = _resolveWasapiDeviceIndex(savedDevice);
+    final wasapiDevice = resolvedDevice ?? -1;
+    if (savedDevice.isNotEmpty && resolvedDevice == null) {
+      log.bass.warn(
+        'legacy',
+        '[bass] WASAPI output device is unavailable, using system default',
+      );
+    }
     int result = bass.FALSE;
     for (int attempt = 0; attempt < 3; attempt++) {
       result = _bassWasapi.BASS_WASAPI_Init(
-        -1, // 默认设备
+        wasapiDevice, // 选定的设备；-1 表示系统默认
         initFreq,
         0, // 自动选择声道数
         flags,

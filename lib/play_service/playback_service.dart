@@ -802,6 +802,34 @@ class PlaybackService extends ChangeNotifier {
     _player.setSpectrumUpdateMode(mode);
   }
 
+  /// 当前可选的输出设备。独占模式用 WASAPI 列表，共享模式用 BASS 列表。
+  List<AudioOutputDevice> listOutputDevices({bool exclusive = false}) {
+    final devices = exclusive
+        ? _player.listWasapiOutputDevices()
+        : _player.listSharedOutputDevices();
+    return List.unmodifiable(devices);
+  }
+
+  /// 当前模式选定的输出设备 key；空字符串表示跟随系统默认设备。
+  String get outputDeviceKey => _player.wasapiExclusive
+      ? AppPreference.instance.playbackPref.wasapiOutputDevice
+      : AppPreference.instance.playbackPref.sharedOutputDevice;
+
+  /// 切换输出设备并保存；播放中会保留位置重建输出。
+  AudioOutputApplyResult setOutputDevice(String deviceKey) {
+    final result = _player.applyOutputDevice(deviceKey);
+    _wasapiExclusive.value = _player.wasapiExclusive;
+    showTextOnSnackBar(
+      switch (result.status) {
+        AudioOutputApplyStatus.applied => '已切换输出设备',
+        AudioOutputApplyStatus.fellBackToDefault => '设备不可用，已回退系统默认',
+        AudioOutputApplyStatus.failed => '切换输出设备失败',
+      },
+      variant: result.succeeded ? ToastVariant.success : ToastVariant.error,
+    );
+    return result;
+  }
+
   void _updateSmtcPosition() {
     if (_closed) return;
     final currentPosition = position;
