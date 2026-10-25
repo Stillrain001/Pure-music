@@ -13,7 +13,7 @@ import 'package:pure_music/lyric/karaok_parser.dart';
 import 'package:pure_music/lyric/lyric_stripper.dart';
 import 'package:pure_music/lyric/exclude_data.dart';
 import 'package:pure_music/core/settings.dart';
-import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/services/native/media_metadata_service.dart';
 import 'package:pure_music/services/online_lyric/api/krc_decryptor.dart';
 import 'package:pure_music/services/online_lyric/api/krc_extract_decode.dart';
 import 'package:pure_music/services/online_lyric/api/qrc_decryptor.dart';
@@ -194,7 +194,7 @@ Future<String?> _safeReadFile(String filePath) async {
       if (!asText.trimLeft().startsWith('[ti:') &&
           !asText.trimLeft().contains(']\u003C0') &&
           !asText.trimLeft().startsWith('[')) {
-        final decrypted = await compute(krcDecrypt, asText);
+        final decrypted = await krcDecryptSingle(asText);
         if (decrypted != null) return decrypted;
       }
       return asText;
@@ -394,7 +394,9 @@ Future<({Lyric lyric, bool isExternal})?> loadLyricFromAudio(
   if (external != null) {
     String? embeddedRaw;
     try {
-      embeddedRaw = await getLyricFromPath(path: audioPath);
+      embeddedRaw = await MediaMetadataService.instance.readEmbeddedLyric(
+        audioPath,
+      );
     } catch (_) {}
     final embeddedHasWordTags =
         embeddedRaw != null &&
@@ -473,7 +475,9 @@ Future<({Lyric lyric, bool isExternal})?> loadLyricFromAudio(
 
   // ── 第 2 步：内嵌歌词 ──
   try {
-    final embedded = await getLyricFromPath(path: audioPath);
+    final embedded = await MediaMetadataService.instance.readEmbeddedLyric(
+      audioPath,
+    );
     if (embedded != null && embedded.isNotEmpty) {
       log.lyric.debug(
         'lyric.candidate',

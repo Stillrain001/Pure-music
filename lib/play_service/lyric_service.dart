@@ -22,6 +22,7 @@ import 'package:pure_music/play_service/audio_tag_write_scheduler.dart';
 import 'package:pure_music/play_service/play_service.dart';
 import 'package:pure_music/play_service/lyric_write_prompt_history.dart';
 import 'package:pure_music/native/rust/api/tag_reader.dart';
+import 'package:pure_music/services/online_lyric/api/lyric_request_scheduler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -1026,6 +1027,7 @@ class LyricService extends ChangeNotifier {
   }
 
   int _beginLyricRequest(String path) {
+    LyricRequestScheduler.instance.beginInteractive();
     currLyricFuture.ignore();
     _activeLyricPath = path;
     _lyricRequestToken += 1;
@@ -1145,7 +1147,9 @@ class LyricService extends ChangeNotifier {
     required String audioPath,
     bool persistFallbackSource = true,
   }) {
-    final fallbackFuture = _loadOnlineLyricWithFallback(audio, preferredSource);
+    final fallbackFuture = LyricRequestScheduler.instance.runInteractive(
+      (_) => _loadOnlineLyricWithFallback(audio, preferredSource),
+    );
     final lyricFuture = fallbackFuture.then((result) => result?.lyric);
     fallbackFuture.then((result) {
       if (result == null ||
@@ -1170,6 +1174,10 @@ class LyricService extends ChangeNotifier {
       });
     });
     return lyricFuture;
+  }
+
+  Future<Lyric?> _runSavedOnlineLyric(Future<Lyric?> Function() task) {
+    return LyricRequestScheduler.instance.runInteractive((_) => task());
   }
 
   /// 根据默认歌词来源获取歌词：
@@ -1286,15 +1294,17 @@ class LyricService extends ChangeNotifier {
     if (lyricSource.source == LyricSourceType.local) {
       return _loadLocalLyric(audioPath, notifyFailure: true);
     }
-    return getOnlineLyric(
-      qqSongId: lyricSource.qqSongId,
-      kugouSongHash: lyricSource.kugouSongHash,
-      neSongId: lyricSource.neSongId,
-      amllTtmlFile: lyricSource.amllTtmlFile,
-      title: nowPlaying.title,
-      album: nowPlaying.album,
-      artist: nowPlaying.artist,
-      durationSec: nowPlaying.duration,
+    return _runSavedOnlineLyric(
+      () => getOnlineLyric(
+        qqSongId: lyricSource.qqSongId,
+        kugouSongHash: lyricSource.kugouSongHash,
+        neSongId: lyricSource.neSongId,
+        amllTtmlFile: lyricSource.amllTtmlFile,
+        title: nowPlaying.title,
+        album: nowPlaying.album,
+        artist: nowPlaying.artist,
+        durationSec: nowPlaying.duration,
+      ),
     );
   }
 
@@ -1494,10 +1504,13 @@ class LyricService extends ChangeNotifier {
 
     // 触发加载但不等待结果
     late final Future<_CachedLocalLyric?> future;
-    future = (() async {
+    future = LyricRequestScheduler.instance.runBackground((token) async {
       try {
+        if (token.isCancelled) return null;
         final value = await _readLocalLyric(path, notifyFailure: false);
-        if (value != null && generation == _prefetchGeneration) {
+        if (value != null &&
+            generation == _prefetchGeneration &&
+            !token.isCancelled) {
           _lyricCache.put(cacheKey, value);
         }
         return value;
@@ -1507,8 +1520,22 @@ class LyricService extends ChangeNotifier {
           if (removed != null) unawaited(removed);
         }
       }
-    })();
+    });
     _lyricPrefetches[cacheKey] = future;
+    unawaited(
+      future.then<void>(
+        (_) {
+          if (identical(_lyricPrefetches[cacheKey], future)) {
+            _lyricPrefetches.remove(cacheKey);
+          }
+        },
+        onError: (Object _, StackTrace stack) {
+          if (identical(_lyricPrefetches[cacheKey], future)) {
+            _lyricPrefetches.remove(cacheKey);
+          }
+        },
+      ),
+    );
     future.ignore();
   }
 
@@ -1711,15 +1738,17 @@ class LyricService extends ChangeNotifier {
         '切换到已保存的在线歌词',
         fields: {'mode': 'saved', 'source': savedSource.source.name},
       );
-      return getOnlineLyric(
-        qqSongId: savedSource.qqSongId,
-        kugouSongHash: savedSource.kugouSongHash,
-        neSongId: savedSource.neSongId,
-        amllTtmlFile: savedSource.amllTtmlFile,
-        title: nowPlaying.title,
-        album: nowPlaying.album,
-        artist: nowPlaying.artist,
-        durationSec: nowPlaying.duration,
+      return _runSavedOnlineLyric(
+        () => getOnlineLyric(
+          qqSongId: savedSource.qqSongId,
+          kugouSongHash: savedSource.kugouSongHash,
+          neSongId: savedSource.neSongId,
+          amllTtmlFile: savedSource.amllTtmlFile,
+          title: nowPlaying.title,
+          album: nowPlaying.album,
+          artist: nowPlaying.artist,
+          durationSec: nowPlaying.duration,
+        ),
       );
     }
     final rs = switch (AppSettings.instance.preferredOnlineSource) {
@@ -1773,6 +1802,8 @@ class LyricService extends ChangeNotifier {
 
   @override
   void dispose() {
+    LyricRequestScheduler.instance.cancelInteractive();
+    LyricRequestScheduler.instance.cancelBackground();
     _cancelLyricWritePrompt();
     _lyricLineStreamController.close();
     LyricManualOffset.instance.removeListener(_onManualOffsetChanged);
@@ -1787,6 +1818,7 @@ class LyricService extends ChangeNotifier {
 
   void clearCache() {
     _prefetchGeneration++;
+    LyricRequestScheduler.instance.cancelBackground();
     _lyricPrefetches.clear();
     _lyricCache.clear();
   }

@@ -1,6 +1,7 @@
 import 'dart:isolate';
 
 import 'package:pure_music/services/online_lyric/models/lyric_entry.dart';
+import 'package:pure_music/services/online_lyric/api/lyric_request_scheduler.dart';
 import 'package:pure_music/lyric/metadata_detector.dart';
 
 /// 统一歌词解析工具
@@ -544,11 +545,27 @@ Future<ParsedLyricResult?> parseLyricInIsolate({
   String? transText,
   String? romanizationText,
 }) async {
-  return Isolate.run(() {
+  final byteLength =
+      text.length +
+      (transText?.length ?? 0) +
+      (romanizationText?.length ?? 0);
+  if (shouldRunLyricWorkInline(byteLength)) {
     return LrcTool.parse(
       text,
       transText: transText,
       romanizationText: romanizationText,
     );
-  });
+  }
+  return LyricRequestScheduler.instance
+      .runLyricCompute((token) async {
+        if (token.isCancelled) return null;
+        return Isolate.run(() {
+          return LrcTool.parse(
+            text,
+            transText: transText,
+            romanizationText: romanizationText,
+          );
+        });
+      })
+      .timeout(const Duration(seconds: 5), onTimeout: () => null);
 }
