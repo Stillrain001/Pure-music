@@ -50,9 +50,9 @@ class PlayService {
     LyricViewController.disposeIfInitialized();
     _disposeLyricService();
     LyricRequestScheduler.instance.close();
+    await SystemVolumeService.instance.dispose();
     await _closePlayback();
     ThemeProvider.instance.dispose();
-    SystemVolumeService.instance.dispose();
     AlbumColorCache.instance.dispose();
     CoverImageCache.instance.dispose();
     AudioLibrary.instance.dispose();

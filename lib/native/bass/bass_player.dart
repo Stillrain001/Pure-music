@@ -141,7 +141,6 @@ class BassPlayer {
   static const _limiterFxPriority = 10;
 
   late final ffi.DynamicLibrary _bassLib;
-  late final ffi.DynamicLibrary _bassWasapiLib;
   late final bass.Bass _bass;
   late final BassUrl _bassUrl;
   late final bass_wasapi.BassWasapi _bassWasapi;
@@ -176,6 +175,9 @@ class BassPlayer {
   int? _smartOutgoingStream;
   int _mixerGeneration = 0;
   bool _streamWasapiExclusive = false;
+  bool _wasapiInitialized = false;
+  bool _wasapiStarted = false;
+  bool _freed = false;
   bool _transitionHandledCompletion = false;
 
   double? _replayGainDb;
@@ -461,9 +463,7 @@ class BassPlayer {
         }
       } else {
         if (wasExclusive) {
-          _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-          _bassWasapi.BASS_WASAPI_Free();
-          _wasapiOutputInfo = 'off';
+          _releaseWasapiOutput();
           wasapiExclusive = false;
           _streamWasapiExclusive = false;
           onExclusiveModeChanged?.call(false);
@@ -2145,7 +2145,6 @@ class BassPlayer {
       final wasapiLib = ffi.DynamicLibrary.open(
         path.join(_bassDir, 'basswasapi.dll'),
       );
-      _bassWasapiLib = wasapiLib;
       _bassWasapi = bass_wasapi.BassWasapi(wasapiLib);
     } catch (e) {
       log.bass.error('legacy', '[bass] FATAL: Cannot load basswasapi.dll: $e');
@@ -3307,8 +3306,7 @@ class BassPlayer {
         _positionUpdaterVersion++;
         _positionUpdater?.cancel();
         _positionUpdater = null;
-        _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-        _bassWasapi.BASS_WASAPI_Free();
+        _releaseWasapiOutput();
         _bass.BASS_StreamFree(_fstream!);
         _fstream = null;
         _streamWasapiExclusive = false;
@@ -3337,10 +3335,25 @@ class BassPlayer {
   }
 
   void _stopWasapiOutputIfNeeded() {
-    if (!wasapiExclusive && !_streamWasapiExclusive) return;
-    _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-    _bassWasapi.BASS_WASAPI_Free();
-    _wasapiOutputInfo = 'off';
+    if (!wasapiExclusive &&
+        !_streamWasapiExclusive &&
+        !_wasapiInitialized &&
+        !_wasapiStarted) {
+      return;
+    }
+    _releaseWasapiOutput();
+  }
+
+  void _releaseWasapiOutput({bool updateInfo = true}) {
+    if (_wasapiStarted) {
+      _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
+    }
+    if (_wasapiInitialized || _wasapiStarted) {
+      _bassWasapi.BASS_WASAPI_Free();
+    }
+    _wasapiInitialized = false;
+    _wasapiStarted = false;
+    if (updateInfo) _wasapiOutputInfo = 'off';
   }
 
   /// Rebuilds the audio stream after output-mode changes.
@@ -3815,8 +3828,7 @@ class BassPlayer {
 
     // 重置WASAPI状态
     _wasapiOutputInfo = 'initializing';
-    _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-    _bassWasapi.BASS_WASAPI_Free();
+    _releaseWasapiOutput(updateInfo: false);
 
     // 添加 AUTOFORMAT 和 BUFFER 标志
     const flags =
@@ -3869,8 +3881,7 @@ class BassPlayer {
         case bass.BASS_ERROR_DEVICE:
           throw const FormatException('device is invalid.');
         case bass.BASS_ERROR_ALREADY:
-          _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-          _bassWasapi.BASS_WASAPI_Free();
+          _releaseWasapiOutput(updateInfo: false);
           _bassWasapiInit();
           break;
         case bass.BASS_ERROR_NOTAVAIL:
@@ -3909,6 +3920,8 @@ class BassPlayer {
           throw const FormatException('Some other mystery problem!');
       }
     } else {
+      _wasapiInitialized = true;
+      _wasapiStarted = false;
       _refreshWasapiOutputInfo(bufferSec);
     }
   }
@@ -3936,6 +3949,8 @@ class BassPlayer {
         case bass.BASS_ERROR_UNKNOWN:
           throw const FormatException('Some other mystery problem!');
       }
+    } else {
+      _wasapiStarted = true;
     }
 
     // 正常启动（切歌/恢复），直接应用当前输出增益，不做淡入
@@ -3954,9 +3969,7 @@ class BassPlayer {
     _cancelPendingPause();
     final seekPos = position;
     final sourcePath = _fPath;
-    _bassWasapi.BASS_WASAPI_Stop(bass.TRUE);
-    _bassWasapi.BASS_WASAPI_Free();
-    _wasapiOutputInfo = 'off';
+    _releaseWasapiOutput();
     if (_fstream != null) {
       _bass.BASS_StreamFree(_fstream!);
       _fstream = null;
@@ -4047,6 +4060,7 @@ class BassPlayer {
 
   void _pauseWasapiExclusive() {
     if (_bassWasapi.BASS_WASAPI_Stop(bass.FALSE) == bass.TRUE) {
+      _wasapiStarted = false;
       _playerStateStreamController.add(playerState);
       _positionUpdater?.cancel();
       _emitPositionSnapshot();
@@ -4081,6 +4095,7 @@ class BassPlayer {
         handle != null &&
         _fstream == handle &&
         _bassWasapi.BASS_WASAPI_Stop(bass.FALSE) == bass.TRUE;
+    if (stopped) _wasapiStarted = false;
     _pauseFadeGain = 1.0;
     _applyPlaybackGains();
     _playerStateStreamController.add(playerState);
@@ -4308,6 +4323,8 @@ class BassPlayer {
   ///
   /// Also free the bass.dll.
   void free() {
+    if (_freed) return;
+    _freed = true;
     _cancelPendingPause();
     _cancelOutputGainFade(keepTarget: true);
     _fadeInTimer?.cancel();
@@ -4385,7 +4402,7 @@ class BassPlayer {
     _bassFxLib?.close();
     _bassFxLib = null;
     _bassFx = null;
-    _bassWasapiLib.close();
+    // BASS_WASAPI 可能仍有系统音频回调，进程内不卸载其 DLL。
     _bassLib.close();
     _playerStateStreamController.close();
     _positionStreamController.close();
