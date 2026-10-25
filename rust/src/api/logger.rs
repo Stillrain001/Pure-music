@@ -23,12 +23,7 @@ impl Log for DartLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let line = format!(
-            "{}|{}|{}",
-            record.level(),
-            record.target(),
-            record.args()
-        );
+        let line = format!("{}|{}|{}", record.level(), record.target(), record.args());
         log_to_dart(line);
     }
 

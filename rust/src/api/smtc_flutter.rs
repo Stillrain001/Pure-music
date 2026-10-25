@@ -669,10 +669,11 @@ impl SMTCFlutter {
                 }
                 let _winrt_guard = WinRtThreadGuard;
                 loop {
-                    let job = match Self::_wait_for_job(&worker_pending, &worker_wake, &worker_closed) {
-                        Some(job) => job,
-                        None => return,
-                    };
+                    let job =
+                        match Self::_wait_for_job(&worker_pending, &worker_wake, &worker_closed) {
+                            Some(job) => job,
+                            None => return,
+                        };
                     let thumbnail = match Self::_try_get_thumbnail(&HSTRING::from(job.0)) {
                         Ok(thumbnail) => thumbnail,
                         Err(error) => {

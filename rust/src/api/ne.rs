@@ -617,8 +617,7 @@ impl NetEaseCloud {
                     map.insert("id".to_string(), id);
                     map.insert(
                         "name".to_string(),
-                        song
-                            .get("name")
+                        song.get("name")
                             .and_then(|v| v.as_str())
                             .unwrap_or("UNKNOWN")
                             .to_string(),

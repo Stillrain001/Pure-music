@@ -1,8 +1,6 @@
 use flutter_rust_bridge::frb;
 use windows::UI::ViewManagement::{UIColorType, UISettings};
 
-
-
 pub struct SystemTheme {
     /// a, r, g, b
     pub fore: (u8, u8, u8, u8),

@@ -425,9 +425,7 @@ fn http_get(url: &str, timeout_secs: u64) -> Result<String, String> {
 
 fn is_safe_lyric_id(id: &str) -> bool {
     let trimmed = id.trim();
-    !trimmed.is_empty()
-        && !trimmed.contains(['/', '\\', '?', '#', '\0'])
-        && !trimmed.contains("..")
+    !trimmed.is_empty() && !trimmed.contains(['/', '\\', '?', '#', '\0']) && !trimmed.contains("..")
 }
 
 pub fn amll_get_ttml(id: &str) -> Option<String> {

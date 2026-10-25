@@ -10,8 +10,6 @@ use windows::{
     Win32::UI::{Shell::IInitializeWithWindow, WindowsAndMessaging::GetForegroundWindow},
 };
 
-
-
 /// path: 文件或文件夹的绝对路径。
 /// 会打开父级目录并选择路径指向的项。
 pub fn show_in_explorer(path: String) -> bool {

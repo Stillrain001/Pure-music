@@ -2,8 +2,6 @@ use image::{DynamicImage, GenericImageView};
 use kmeans_colors::{get_kmeans, CentroidData, Sort};
 use palette::{IntoColor, Lab, Srgb};
 
-
-
 const SAMPLE_EXTENT: u32 = 150;
 const MIN_CLUSTER_PERCENTAGE: f32 = 0.005;
 const MIN_DIVERSITY_PERCENTAGE: f32 = 0.02;

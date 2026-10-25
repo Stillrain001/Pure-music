@@ -4,8 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-
-
 pub struct InstalledFont {
     pub path: String,
     pub full_name: String,
