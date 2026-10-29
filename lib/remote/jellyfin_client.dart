@@ -122,15 +122,12 @@ class JellyfinClient implements RemoteClient {
   }
 
   @override
-  void seedExistingTracks(List<RemoteTrack> tracks) {
-    // Jellyfin 的列表接口本身很轻（每页 500 首），不需要额外的增量跳过。
-  }
-
-  @override
   Future<List<RemoteTrack>> fetchTracks(
     RemoteSource source,
     String password, {
     RemoteSyncProgress? onProgress,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
   }) async {
     final credentials = _credentials(password);
     if (credentials.token.isEmpty || credentials.userId.isEmpty) {
@@ -143,6 +140,7 @@ class JellyfinClient implements RemoteClient {
     var total = 0;
 
     while (offset < _maxItems) {
+      checkCancelled?.call();
       final response = await dio.get<dynamic>(
         '${_base(source)}/Items',
         queryParameters: {
@@ -181,6 +179,14 @@ class JellyfinClient implements RemoteClient {
       );
       if (list.length < _pageSize) break;
       offset += list.length;
+    }
+    // 超过上限被截断时不能把半截结果当成功：那会用残缺集合替换掉
+    // 本来完整的曲库，超出部分的歌全部消失。
+    if (tracks.length >= _maxItems && total > tracks.length) {
+      throw StateError(
+        'Jellyfin 曲库共 $total 首，超过 $_maxItems 首上限。'
+        '为避免截断丢歌已中止同步',
+      );
     }
     onProgress?.call(0.88, '已获取 ${tracks.length} 首');
     return tracks;

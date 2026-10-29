@@ -125,19 +125,24 @@ class NavidromeClient implements RemoteClient {
 
   /// Navidrome 走 search3 全量拉取，标签由服务器提供，没有需要沿用的本地解析结果。
   @override
-  void seedExistingTracks(List<RemoteTrack> tracks) {}
-
-  @override
   Future<List<RemoteTrack>> fetchTracks(
     RemoteSource source,
     String password, {
     RemoteSyncProgress? onProgress,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
   }) async {
     final dio = _dio();
 
     // search3 分页在 0.64.x 上是可靠的（500 首/页，全库几次请求就够），
     // 比逐张专辑取（几千次请求）快两个数量级。
-    final search = await _collectBySearch(dio, source, password, onProgress);
+    final search = await _collectBySearch(
+      dio,
+      source,
+      password,
+      onProgress,
+      checkCancelled,
+    );
     if (search.tracks.isNotEmpty && search.reliable) {
       onProgress?.call(0.88, '已获取 ${search.tracks.length} 首');
       return search.tracks;
@@ -154,7 +159,10 @@ class NavidromeClient implements RemoteClient {
         tracks,
         seenIds,
         onProgress,
+        checkCancelled,
       );
+    } on RemoteSyncCancelled {
+      rethrow;
     } catch (error) {
       if (tracks.isEmpty) rethrow;
       // 抓到一半失败：不能把残缺结果当成功写进库（会少歌）。
@@ -176,10 +184,13 @@ class NavidromeClient implements RemoteClient {
     List<RemoteTrack> tracks,
     Set<String> seenIds,
     RemoteSyncProgress? onProgress,
+    void Function()? checkCancelled,
   ) async {
     var offset = 0;
     var albumCount = 0;
+    var failedAlbums = 0;
     while (offset < _maxSongs) {
+      checkCancelled?.call();
       final response = await dio.get<dynamic>(
         '${_restBase(source)}/getAlbumList2.view',
         queryParameters: {
@@ -195,6 +206,7 @@ class NavidromeClient implements RemoteClient {
       final albums = rawAlbums is List ? rawAlbums : const <Object?>[];
       if (albums.isEmpty) break;
       for (final raw in albums) {
+        checkCancelled?.call();
         if (raw is! Map) continue;
         final albumId = raw['id']?.toString() ?? '';
         if (albumId.isEmpty) continue;
@@ -208,8 +220,12 @@ class NavidromeClient implements RemoteClient {
             tracks,
             seenIds,
           );
+        } on RemoteSyncCancelled {
+          rethrow;
         } catch (_) {
-          // 单张专辑失败（封面损坏、权限等）不应该拖垮整次同步。
+          // 单张专辑失败（封面损坏、权限等）不能悄悄跳过：跳过的专辑
+          // 会从曲库里消失。计数后统一中止，让用户重试。
+          failedAlbums++;
           continue;
         }
         albumCount++;
@@ -223,6 +239,11 @@ class NavidromeClient implements RemoteClient {
       if (albums.length < _pageSize) break;
       if (tracks.length >= _maxSongs) break;
       offset += albums.length;
+    }
+    if (failedAlbums > 0) {
+      throw StateError(
+        '$failedAlbums 张专辑拉取失败。为避免曲库缺歌已中止同步，请稍后重试',
+      );
     }
   }
 
@@ -256,12 +277,14 @@ class NavidromeClient implements RemoteClient {
     RemoteSource source,
     String password,
     RemoteSyncProgress? onProgress,
+    void Function()? checkCancelled,
   ) async {
     final tracks = <RemoteTrack>[];
     final seenIds = <String>{};
     var reliable = true;
     var offset = 0;
     while (offset < _maxSongs) {
+      checkCancelled?.call();
       final response = await dio.get<dynamic>(
         '${_restBase(source)}/search3.view',
         queryParameters: {

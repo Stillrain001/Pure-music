@@ -17,6 +17,8 @@ import 'package:pure_music/remote/remote_store.dart';
 import 'package:pure_music/remote/smb_client.dart';
 import 'package:pure_music/remote/webdav_client.dart';
 
+export 'package:pure_music/remote/remote_client.dart' show RemoteSyncCancelled;
+
 /// Windows 的 MAX_PATH（260）对 `\\server\share\...` 同样生效：
 /// 长中文文件名会被 Win32 API 直接拒掉，报 0x800700A1。
 /// 加 `\\?\UNC\` 前缀走扩展长度路径，Rust 侧的 std::fs 也认这种形式。
@@ -24,14 +26,6 @@ String windowsExtendedPath(String path) {
   if (path.isEmpty || path.startsWith(r'\\?\')) return path;
   if (path.startsWith(r'\\')) return '\\\\?\\UNC\\${path.substring(2)}';
   return path;
-}
-
-/// 同步过程中该源被删除，用来让后台任务尽快退出。
-class RemoteSyncCancelled implements Exception {
-  const RemoteSyncCancelled();
-
-  @override
-  String toString() => '同步已取消';
 }
 
 /// 远程曲目的可读来源信息。`remote://<id>/<base64>` 这种内部路径对用户没有意义。
@@ -219,10 +213,16 @@ class RemoteLibrary {
     }
   }
 
+  /// reload 代次：并发的 reload 里只有最新一次的结果可以落地，
+  /// 否则旧快照最后完成会把新状态（比如刚删掉的源）又盖回去。
+  int _reloadGeneration = 0;
+
   Future<void> reload() async {
+    final generation = ++_reloadGeneration;
     final sources = await _store.readSources();
     final tracks = await _store.readTracks();
     final playCounts = await _store.readPlayCounts();
+    if (generation != _reloadGeneration) return;
     _sources
       ..clear()
       ..addAll(sources);
@@ -231,10 +231,20 @@ class RemoteLibrary {
       ..addEntries(sources.map((source) => MapEntry(source.id, source)));
     _tracksByPath.clear();
     _tracksByLowerPath.clear();
+    // 先统计每个小写键对应几个不同的精确路径：WebDAV URL 区分大小写，
+    // 「Song.mp3」和「song.mp3」是两首歌，小写回退查找会张冠李戴，
+    // 只对无歧义的键提供不区分大小写的回退。
+    final lowerCounts = <String, int>{};
+    for (final track in tracks) {
+      final lower = _pathOf(track).toLowerCase();
+      lowerCounts[lower] = (lowerCounts[lower] ?? 0) + 1;
+    }
     for (final track in tracks) {
       final path = _pathOf(track);
       _tracksByPath[path] = track;
-      _tracksByLowerPath[path.toLowerCase()] = track;
+      if (lowerCounts[path.toLowerCase()] == 1) {
+        _tracksByLowerPath[path.toLowerCase()] = track;
+      }
     }
     _audioByPath.clear();
     _audioByLowerPath.clear();
@@ -248,7 +258,9 @@ class RemoteLibrary {
         playCount: playCounts[path] ?? 0,
       );
       _audioByPath[path] = audio;
-      _audioByLowerPath[path.toLowerCase()] = audio;
+      if (lowerCounts[path.toLowerCase()] == 1) {
+        _audioByLowerPath[path.toLowerCase()] = audio;
+      }
     }
     version.value++;
   }
@@ -340,7 +352,9 @@ class RemoteLibrary {
     final password = passwordFor(source);
     // 必须带上尺寸：列表先取 48px 缩略图，详情页要 200px 时若命中同一
     // 路径的缓存就会拿到小图，放大后就是糊的。
-    final key = '$path#$size';
+    // 还要带上 coverId 和修改时间：同步刷新封面后旧缓存会把过期的图
+    // 一直端上来，键里带版本号，曲目一变自然失效。
+    final key = '$path#$size#${track.coverId ?? ''}#${track.modified}';
     final cached = _coverCache.remove(key);
     if (cached != null) {
       _coverCache[key] = cached;
@@ -606,15 +620,27 @@ class RemoteLibrary {
   }
 
   /// 判断两次抓取结果是否完全一致，决定要不要重写库。
+  /// 必须比对全部持久化字段：漏掉的字段一变，跳过写库就会让界面停留在旧数据上。
   bool _sameTracks(List<RemoteTrack> previous, List<RemoteTrack> next) {
     if (previous.length != next.length) return false;
     final index = {for (final track in previous) track.trackId: track};
     for (final track in next) {
       final old = index[track.trackId];
       if (old == null) return false;
-      if (old.modified != track.modified) return false;
-      if (old.title != track.title || old.artist != track.artist) return false;
-      if (old.album != track.album || old.duration != track.duration) {
+      if (old.sourceId != track.sourceId ||
+          old.title != track.title ||
+          old.artist != track.artist ||
+          old.album != track.album ||
+          old.albumArtist != track.albumArtist ||
+          old.track != track.track ||
+          old.disc != track.disc ||
+          old.duration != track.duration ||
+          old.bitrate != track.bitrate ||
+          old.sampleRate != track.sampleRate ||
+          old.modified != track.modified ||
+          old.created != track.created ||
+          old.by != track.by ||
+          old.coverId != track.coverId) {
         return false;
       }
     }
@@ -635,15 +661,19 @@ class RemoteLibrary {
       onProgress?.call(0.02, '正在连接…');
       // 增量同步：把上次结果交给客户端，未变化的文件不必重新解析。
       final existing = await _store.readTracksForSource(source.id);
-      client.seedExistingTracks(existing);
       final tracks = await client.fetchTracks(
         source,
         password,
         onProgress: onProgress,
+        existingTracks: {for (final track in existing) track.trackId: track},
+        checkCancelled: () => _throwIfCancelled(source.id),
       );
       _throwIfCancelled(source.id);
       if (tracks.isEmpty) {
-        throw StateError('远程服务器没有返回歌曲，请检查地址、账号和音乐目录');
+        throw StateError(
+          '远程服务器没有返回歌曲，请检查地址、账号和音乐目录。'
+          '若确实已清空远程目录，请删除该源后重新添加',
+        );
       }
       if (_sameTracks(existing, tracks)) {
         // 一首都没变：不重写库，避免几千行 DELETE + INSERT 的无谓开销。
@@ -668,6 +698,9 @@ class RemoteLibrary {
       _throwIfCancelled(source.id);
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       await _store.upsertSource(source.copyWith(lastSyncAt: now));
+      // upsert 之后再查一次取消：删除可能正好发生在上一个检查点和写入
+      // 之间，这一步抛出后 finally 会把「复活」的源重新删掉。
+      _throwIfCancelled(source.id);
       await reload();
       return tracks.length;
     } on RemoteSyncCancelled {

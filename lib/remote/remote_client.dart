@@ -4,16 +4,28 @@ import 'package:pure_music/remote/remote_source.dart';
 
 typedef RemoteSyncProgress = void Function(double progress, String message);
 
+/// 同步过程中该源被删除，用来让后台任务尽快退出。
+class RemoteSyncCancelled implements Exception {
+  const RemoteSyncCancelled();
+
+  @override
+  String toString() => '同步已取消';
+}
+
 abstract class RemoteClient {
+  /// [existingTracks] 是上次同步的结果（按 trackId 索引），用于增量跳过
+  /// 未变化的文件。按参数传递而不是存在客户端字段里：同一协议的多个源
+  /// 并发同步时不会互相覆盖。
+  ///
+  /// [checkCancelled] 在抓取期间的每个检查点被调用，源被删除时应尽快
+  /// 抛出 [RemoteSyncCancelled] 退出。
   Future<List<RemoteTrack>> fetchTracks(
     RemoteSource source,
     String password, {
     RemoteSyncProgress? onProgress,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
   });
-
-  /// 增量同步提示：上次同步的结果。实现的客户端可以据此跳过未变化的文件，
-  /// 避免每次同步都把整个库重新解析一遍。
-  void seedExistingTracks(List<RemoteTrack> tracks) {}
 
   String playbackUrl(RemoteSource source, String password, String trackId);
 

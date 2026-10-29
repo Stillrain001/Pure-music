@@ -80,9 +80,11 @@ void _connectBlocking(String remote, String username, String password) {
       userPtr,
       _connectTemporary,
     );
-    // 1219（同一服务器已有其他账号的连接）和 85（本地名已分配）都说明
-    // 「已经连着了」。扫描走的是 UNC 路径，用的是那条现存会话，不必报错。
-    if (result != 0 && result != 1219 && result != 85) {
+    // 85（本地名已分配）说明共享已经连着，直接复用即可。
+    // 但 1219 不行：它表示现存会话用的是**别的账号**，UNC 扫描会落在
+    // 那个账号的权限里——可能导进别的账号才看得到的文件，也可能悄悄
+    // 缺歌。宁可报错让用户理清凭据，也不能装作认证成功。
+    if (result != 0 && result != 85) {
       throw StateError(_connectErrorMessage(result));
     }
   } finally {
@@ -192,13 +194,12 @@ class SmbClient implements RemoteClient {
   }
 
   @override
-  void seedExistingTracks(List<RemoteTrack> tracks) {}
-
-  @override
   Future<List<RemoteTrack>> fetchTracks(
     RemoteSource source,
     String password, {
     RemoteSyncProgress? onProgress,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
   }) async {
     await authenticate(source, password);
     final root = _sourceRoot(source);
@@ -214,6 +215,7 @@ class SmbClient implements RemoteClient {
             folders: [root],
             indexPath: indexDir.path,
           )) {
+        checkCancelled?.call();
         onProgress?.call(state.progress.clamp(0.0, 1.0), state.message);
         if (state.phase == IndexPhase.complete) break;
       }
@@ -248,6 +250,8 @@ class SmbClient implements RemoteClient {
       }
       onProgress?.call(1, '已读取 ${tracks.length} 首');
       return tracks;
+    } on RemoteSyncCancelled {
+      rethrow;
     } catch (error) {
       throw StateError(_friendlySmbError(error));
     }
