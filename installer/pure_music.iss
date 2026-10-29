@@ -1,4 +1,4 @@
-#ifndef SourceDir
+﻿#ifndef SourceDir
   #error SourceDir is required
 #endif
 #ifndef AppVersion

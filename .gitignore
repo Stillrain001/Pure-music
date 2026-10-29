@@ -116,3 +116,6 @@ skills-lock.json
 # Local diagnostics, not shipped
 tool/local/
 
+
+# WorkBuddy 工作区（本地记忆，不入库）
+.workbuddy/

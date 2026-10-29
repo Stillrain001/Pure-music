@@ -6,6 +6,8 @@ analyzer:
     - rust_builder/cargokit/build_tool/**
     # FRB 生成代码，下次 generate 会覆盖，不手改也不拿来报警
     - lib/native/rust/**
+    - build/**
+    - windows/**
   language:
     # 外部 JSON 仍允许 dynamic 赋值。类型必须写明，不能靠裸 Map / List
     strict-casts: false
