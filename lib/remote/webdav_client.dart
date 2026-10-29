@@ -9,14 +9,6 @@ import 'package:pure_music/remote/remote_source.dart';
 import 'package:xml/xml.dart';
 
 class WebDavClient implements RemoteClient {
-  /// 上次同步的结果，按 trackId 索引。文件没变过就不必再读一遍头部。
-  Map<String, RemoteTrack> _seedTracks = const <String, RemoteTrack>{};
-
-  @override
-  void seedExistingTracks(List<RemoteTrack> tracks) {
-    _seedTracks = {for (final track in tracks) track.trackId: track};
-  }
-
   static const _maxDirectories = 10000;
   static const _maxTracks = 200000;
   static const _audioExtensions = {
@@ -73,11 +65,18 @@ class WebDavClient implements RemoteClient {
     );
   }
 
+  /// 同主机才算同源：协议/端口变化（http→https 升级）可以接受，
+  /// 但主机一换就必须断掉——否则 Basic 凭据会被转发给别的服务器。
+  bool _sameHost(Uri base, Uri target) =>
+      base.host.toLowerCase() == target.host.toLowerCase();
+
   @override
   Future<List<RemoteTrack>> fetchTracks(
     RemoteSource source,
     String password, {
     RemoteSyncProgress? onProgress,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
   }) async {
     final dio = _dio(source, password);
     final base = Uri.parse(
@@ -88,6 +87,7 @@ class WebDavClient implements RemoteClient {
     final visited = <String>{};
     final pending = <Uri>[base];
     while (pending.isNotEmpty) {
+      checkCancelled?.call();
       final directory = pending.removeLast();
       final key = directory.toString();
       if (!visited.add(key)) continue;
@@ -102,6 +102,14 @@ class WebDavClient implements RemoteClient {
           throw StateError('WebDAV 地址发生重定向（$status）但缺少 Location');
         }
         final target = directory.resolve(location.trim());
+        if (!_sameHost(base, target)) {
+          // 拒绝对跨主机重定向继续带凭据：把用户密码送给别人家的服务器
+          // 比同步失败严重得多。
+          throw StateError(
+            'WebDAV 重定向到了其他主机（${target.host}），'
+            '出于安全考虑已中止，请检查地址',
+          );
+        }
         if (!visited.contains(target.toString())) pending.add(target);
         continue;
       }
@@ -122,6 +130,7 @@ class WebDavClient implements RemoteClient {
         final href = _textOf(entry, 'href');
         if (href == null || href.isEmpty) continue;
         final uri = directory.resolve(href);
+        if (!_sameHost(base, uri)) continue;
         if (uri.toString() == key) continue;
         if (_isCollection(entry)) continue;
         if (_isCover(uri.path)) {
@@ -132,6 +141,9 @@ class WebDavClient implements RemoteClient {
         final href = _textOf(entry, 'href');
         if (href == null || href.isEmpty) continue;
         final uri = directory.resolve(href);
+        // 列表里混进其他主机的条目时不收：后续取标签/封面/播放都会
+        // 带着凭据访问这个 URL，跨主机就等于把凭据送出去。
+        if (!_sameHost(base, uri)) continue;
         final normalized = uri.toString();
         if (normalized == key) continue;
         if (_isCollection(entry)) {
@@ -162,7 +174,14 @@ class WebDavClient implements RemoteClient {
         '已发现 ${tracks.length} 首',
       );
     }
-    await _enrichTags(dio, tracks, sizes: sizes, onProgress: onProgress);
+    await _enrichTags(
+      dio,
+      tracks,
+      sizes: sizes,
+      existingTracks: existingTracks,
+      checkCancelled: checkCancelled,
+      onProgress: onProgress,
+    );
     tracks.sort((a, b) {
       final album = a.album.toLowerCase().compareTo(b.album.toLowerCase());
       if (album != 0) return album;
@@ -182,6 +201,8 @@ class WebDavClient implements RemoteClient {
     Dio dio,
     List<RemoteTrack> tracks, {
     required Map<String, int> sizes,
+    Map<String, RemoteTrack> existingTracks = const {},
+    void Function()? checkCancelled,
     RemoteSyncProgress? onProgress,
   }) async {
     const parallel = 8;
@@ -192,10 +213,13 @@ class WebDavClient implements RemoteClient {
 
     Future<void> worker() async {
       while (true) {
+        // 放在 try 外面：取消异常不能被下面「单个文件失败不拖垮同步」
+        // 的兜底 catch 吞掉。
+        checkCancelled?.call();
         final index = next++;
         if (index >= total) return;
         final track = tracks[index];
-        final previous = _seedTracks[track.trackId];
+        final previous = existingTracks[track.trackId];
         if (previous != null &&
             previous.modified > 0 &&
             previous.modified == track.modified &&
@@ -212,36 +236,29 @@ class WebDavClient implements RemoteClient {
           continue;
         }
         try {
-          final response = await dio.get<List<int>>(
+          final data = await _getRangeCapped(
+            dio,
             track.trackId,
-            options: Options(
-              responseType: ResponseType.bytes,
-              headers: {'Range': 'bytes=0-${remoteTagProbeBytes - 1}'},
-            ),
+            start: 0,
+            length: remoteTagProbeBytes,
           );
-          final data = response.data;
           if (data != null && data.isNotEmpty) {
-            var tags = parseMp3Tags(
-              Uint8List.fromList(data),
-              fileSize: sizes[track.trackId],
-            );
+            var tags = parseMp3Tags(data, fileSize: sizes[track.trackId]);
             // 内嵌封面会把音频帧挤出探测窗口：标签拿到了但时长是 0，
             // 这时按 ID3 里记录的偏移再取 16KB，只补时长和码率。
             if (tags != null &&
                 tags.duration == 0 &&
                 tags.audioStart >= data.length) {
               final start = tags.audioStart;
-              final tail = await dio.get<List<int>>(
+              final tailData = await _getRangeCapped(
+                dio,
                 track.trackId,
-                options: Options(
-                  responseType: ResponseType.bytes,
-                  headers: {'Range': 'bytes=$start-${start + 16383}'},
-                ),
+                start: start,
+                length: 16384,
               );
-              final tailData = tail.data;
               if (tailData != null && tailData.isNotEmpty) {
                 final info = parseMp3AudioInfo(
-                  Uint8List.fromList(tailData),
+                  tailData,
                   fileSize: sizes[track.trackId],
                 );
                 if (info != null) {
@@ -287,6 +304,33 @@ class WebDavClient implements RemoteClient {
     await Future.wait([
       for (var i = 0; i < parallel && i < total; i++) worker(),
     ]);
+  }
+
+  /// Range 请求但硬性限量：有的服务器忽略 Range 直接吐整个文件，
+  /// 不封顶的话一首几百 MB 的曲子会被整只塞进内存。
+  Future<Uint8List?> _getRangeCapped(
+    Dio dio,
+    String url, {
+    required int start,
+    required int length,
+  }) async {
+    final response = await dio.get<ResponseBody>(
+      url,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'Range': 'bytes=$start-${start + length - 1}'},
+      ),
+    );
+    final stream = response.data?.stream;
+    if (stream == null) return null;
+    final builder = BytesBuilder(copy: false);
+    // break 会取消订阅，多余的字节连下载都停掉，不只是丢弃。
+    await for (final chunk in stream) {
+      builder.add(chunk);
+      if (builder.length >= length) break;
+    }
+    final bytes = builder.takeBytes();
+    return bytes.isEmpty ? null : Uint8List.fromList(bytes);
   }
 
   /// 把 Dio 的裸异常翻译成能指导用户改配置的提示。
@@ -369,7 +413,8 @@ class WebDavClient implements RemoteClient {
     final dot = name.lastIndexOf('.');
     if (dot > 0) name = name.substring(0, dot);
     var track = 0;
-    final leading = RegExp(r'^(\d{1,3})\s*[-._．、]\s+').firstMatch(name);
+    // 分隔符后允许紧跟标题（「01-Title」），不必强制有空格。
+    final leading = RegExp(r'^(\d{1,3})\s*[-._．、]\s*').firstMatch(name);
     if (leading != null) {
       track = int.tryParse(leading.group(1)!) ?? 0;
       name = name.substring(leading.end).trim();
@@ -437,16 +482,12 @@ class WebDavClient implements RemoteClient {
     int length,
   ) async {
     try {
-      final response = await _dio(source, password).get<List<int>>(
+      return await _getRangeCapped(
+        _dio(source, password),
         url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: {'Range': 'bytes=0-${length - 1}'},
-        ),
+        start: 0,
+        length: length,
       );
-      final data = response.data;
-      if (data == null || data.isEmpty) return null;
-      return Uint8List.fromList(data);
     } catch (_) {
       return null;
     }
