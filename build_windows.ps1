@@ -682,9 +682,14 @@ function New-InstallerPackage([string]$version, [bool]$buildFirst) {
                     try {
                         Remove-Item -LiteralPath $path -Force
                     } catch {
-                        # 删除被安全策略拦住时把旧产物改名挪开，保证新产物能落位。
-                        $backup = '{0}.old-{1}' -f (Split-Path $path -Leaf), (Get-Date -Format 'yyyyMMddHHmmss')
-                        Rename-Item -LiteralPath $path -NewName $backup
+                        # 删除可能被安全策略拦住（甚至先删后抛），旧产物还在
+                        # 就改名挪开，保证新产物能落位；不在就无需处理。
+                        if (Test-Path -LiteralPath $path) {
+                            try {
+                                $backup = '{0}.old-{1}' -f (Split-Path $path -Leaf), (Get-Date -Format 'yyyyMMddHHmmss')
+                                Rename-Item -LiteralPath $path -NewName $backup
+                            } catch {}
+                        }
                     }
                 }
             }
