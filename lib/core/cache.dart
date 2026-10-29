@@ -611,6 +611,18 @@ class CoverImageCache {
   /// 请求超时），永久标记缺失会让这首曲子整场会话都没有封面。
   static const _remoteMissRetry = Duration(seconds: 45);
   final _remoteMissAt = <String, DateTime>{};
+
+  /// 记录失败时间点前先清掉过期项：不再重试的旧记录会让这张表整个
+  /// 会话只增不减。
+  void _rememberRemoteMiss(String key) {
+    if (_remoteMissAt.length > 256) {
+      final now = DateTime.now();
+      _remoteMissAt.removeWhere(
+        (_, at) => now.difference(at) >= _remoteMissRetry,
+      );
+    }
+    _remoteMissAt[key] = DateTime.now();
+  }
   final _coverLoadSemaphore = _AsyncSemaphore(
     backgroundWorkerConcurrencyFor(applicationProcessorBudget),
   );
@@ -869,7 +881,7 @@ class CoverImageCache {
       final result = await future;
       if (result == null) {
         if (RemoteLibrary.isRemotePath(path)) {
-          _remoteMissAt[key] = DateTime.now();
+          _rememberRemoteMiss(key);
         } else {
           _missing.set(key, true);
         }

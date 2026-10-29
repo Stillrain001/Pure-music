@@ -143,7 +143,7 @@ class MediaMetadataService {
       final bytes = await RemoteLibrary.instance.coverBytes(path, target);
       if (bytes == null) return (bytes: null, colors: const <int>[]);
       final colors = await extractCoverPalette(bytes, numColors: numColors);
-      return (bytes: null, colors: colors);
+      return (bytes: bytes, colors: colors);
     }
     final value = await rust_tag_reader.getPictureAndColors(
       path: path,
