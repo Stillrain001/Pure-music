@@ -284,7 +284,13 @@ Future<bool> _loadSettingsAndCaches() async {
   } catch (e, s) {
     log.app.error('legacy', 'RemoteLibrary.init failed: $e\n$s');
   }
-  return !File(path.join(supportPath, 'index.json')).existsSync();
+  // 只看 index.json 会把「已经在用远程源」或「只有 library.sqlite」的老用户
+  // 也当成首次启动，于是每次开都要再问一遍文件夹。
+  final hasLocalIndex =
+      File(path.join(supportPath, 'index.json')).existsSync() ||
+      File(path.join(supportPath, 'library.sqlite')).existsSync();
+  final hasRemoteSource = RemoteLibrary.instance.sources.isNotEmpty;
+  return !hasLocalIndex && !hasRemoteSource;
 }
 
 Future<bool> _initWindowShell() async {

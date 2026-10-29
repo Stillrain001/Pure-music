@@ -221,14 +221,17 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   }
 
   Future<void> _showCurrentAudioInExplorer() async {
-    if (RemoteLibrary.isRemotePath(audio.path)) {
-      showTextOnSnackBar('远程曲目不支持在文件管理器中显示');
+    // 已挂载盘符 / UNC 的远程曲目其实有真实路径，可以直接打开；
+    // WebDAV 的 URL 和 Navidrome 的曲目 ID 不行。
+    final target = RemoteLibrary.instance.explorerPathFor(audio.path);
+    if (target == null) {
+      showTextOnSnackBar('这个远程源没有可打开的文件路径');
       return;
     }
     if (_isOpeningInExplorer) return;
     setState(() => _isOpeningInExplorer = true);
     try {
-      final result = await PlatformService.instance.showInExplorer(audio.path);
+      final result = await PlatformService.instance.showInExplorer(target);
       if (!result && mounted) {
         showTextOnSnackBar('打开失败');
       }
@@ -243,7 +246,11 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
     if (_isCopyingPath) return;
     setState(() => _isCopyingPath = true);
     try {
-      await Clipboard.setData(ClipboardData(text: audio.path));
+      final remote = RemoteLibrary.instance.describePath(audio.path);
+      final text = remote != null && remote.location.isNotEmpty
+          ? remote.location
+          : audio.path;
+      await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
         showTextOnSnackBar('已复制路径');
       }
@@ -740,6 +747,8 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
 
   Widget _viewHeaderActions() {
     final isRemote = RemoteLibrary.isRemotePath(audio.path);
+    final canOpenFolder =
+        RemoteLibrary.instance.explorerPathFor(audio.path) != null;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -751,7 +760,7 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
             style: _headerActionStyle(),
             icon: const Icon(Symbols.edit),
           ),
-        if (!isRemote)
+        if (canOpenFolder)
           IconButton.filledTonal(
             tooltip: '在文件管理器中显示',
             onPressed: _isOpeningInExplorer
@@ -1042,19 +1051,50 @@ class _AudioDetailPageState extends State<AudioDetailPage> {
   }
 
   List<Widget> _viewFileFields(AudioExtraMetadata? data) {
-    final isRemote = RemoteLibrary.isRemotePath(audio.path);
+    final remote = RemoteLibrary.instance.describePath(audio.path);
+    if (remote != null) {
+      final trackId = RemoteLibrary.instance.trackForPath(audio.path)?.trackId;
+      return [
+        _DetailField(
+          label: '来源',
+          value: '${remote.kindLabel} · ${remote.sourceName}',
+        ),
+        _DetailField(
+          label: '格式',
+          value: _fileExtension(remote.location.isEmpty ? trackId : remote.location),
+        ),
+        _DetailField(label: '文件大小', child: _buildFileSize(data)),
+        _DetailField(
+          label: '路径',
+          value: remote.location.isEmpty
+              ? '服务器只提供曲目 ID：${trackId ?? '-'}'
+              : remote.location,
+          allowWrap: true,
+        ),
+        _DetailField(label: '修改时间', value: _formatTimestamp(audio.modified)),
+        _DetailField(label: '创建时间', value: _formatTimestamp(audio.created)),
+      ];
+    }
     return [
       _DetailField(
         label: '格式',
-        value: isRemote
-            ? '-'
-            : p.extension(audio.path).replaceFirst('.', '').toUpperCase(),
+        value: p.extension(audio.path).replaceFirst('.', '').toUpperCase(),
       ),
       _DetailField(label: '文件大小', child: _buildFileSize(data)),
       _DetailField(label: '路径', value: audio.path, allowWrap: true),
       _DetailField(label: '修改时间', value: _formatTimestamp(audio.modified)),
       _DetailField(label: '创建时间', value: _formatTimestamp(audio.created)),
     ];
+  }
+
+  /// 从可读路径里取扩展名；取不到就是 '-'。
+  String _fileExtension(String? path) {
+    final text = path?.trim() ?? '';
+    if (text.isEmpty) return '-';
+    final dot = text.lastIndexOf('.');
+    if (dot <= 0 || dot == text.length - 1) return '-';
+    final ext = text.substring(dot + 1).split(RegExp(r'[?#]')).first;
+    return ext.isEmpty ? '-' : ext.toUpperCase();
   }
 
   Widget _buildViewSectionLayout(double maxWidth, List<Widget> sections) {

@@ -80,7 +80,9 @@ void _connectBlocking(String remote, String username, String password) {
       userPtr,
       _connectTemporary,
     );
-    if (result != 0) {
+    // 1219（同一服务器已有其他账号的连接）和 85（本地名已分配）都说明
+    // 「已经连着了」。扫描走的是 UNC 路径，用的是那条现存会话，不必报错。
+    if (result != 0 && result != 1219 && result != 85) {
       throw StateError(_connectErrorMessage(result));
     }
   } finally {
@@ -129,7 +131,15 @@ class SmbClient implements RemoteClient {
     return '\\\\${segments[0]}\\${segments[1]}';
   }
 
+  /// 已经挂载成本地盘符的远程磁盘（如 Z: 盘下的目录），不需要 SMB 认证，
+  /// 直接当目录扫描即可。
+  static bool isLocalRoot(String root) =>
+      RegExp(r'^[A-Za-z]:[\\/]').hasMatch(root.trim());
+
   String _normalizeRoot(String root) {
+    if (isLocalRoot(root)) {
+      return root.trim().replaceAll('/', r'\').replaceFirst(RegExp(r'\\+$'), '');
+    }
     final normalized = root
         .trim()
         .replaceAll('/', '\\')
@@ -162,8 +172,10 @@ class SmbClient implements RemoteClient {
   }
 
   Future<void> authenticate(RemoteSource source, String password) async {
+    final root = _sourceRoot(source);
+    if (isLocalRoot(root)) return;
     final username = source.username;
-    final remote = shareRoot(_sourceRoot(source));
+    final remote = shareRoot(root);
     try {
       await Isolate.run(
         () => _connectBlocking(remote, username, password),
@@ -178,6 +190,9 @@ class SmbClient implements RemoteClient {
       await authenticate(source, password);
     } catch (_) {}
   }
+
+  @override
+  void seedExistingTracks(List<RemoteTrack> tracks) {}
 
   @override
   Future<List<RemoteTrack>> fetchTracks(

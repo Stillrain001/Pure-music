@@ -606,6 +606,11 @@ class CoverImageCache {
   final _persistentWarmCompleted = <String>{};
   final _persistentWarmPending = <String>{};
   late final _missing = _LruMap<String, bool>(512);
+
+  /// 远程封面取失败时的重试时间点。远程失败多半是瞬时的（同步占满带宽、
+  /// 请求超时），永久标记缺失会让这首曲子整场会话都没有封面。
+  static const _remoteMissRetry = Duration(seconds: 45);
+  final _remoteMissAt = <String, DateTime>{};
   final _coverLoadSemaphore = _AsyncSemaphore(
     backgroundWorkerConcurrencyFor(applicationProcessorBudget),
   );
@@ -845,6 +850,11 @@ class CoverImageCache {
     if (pending != null) return pending;
 
     if (_missing.get(key) == true) return null;
+    final missAt = _remoteMissAt[key];
+    if (missAt != null &&
+        DateTime.now().difference(missAt) < _remoteMissRetry) {
+      return null;
+    }
 
     final future = _coverLoadSemaphore.run(
       () => _loadBytesUncached(
@@ -858,9 +868,14 @@ class CoverImageCache {
     try {
       final result = await future;
       if (result == null) {
-        _missing.set(key, true);
+        if (RemoteLibrary.isRemotePath(path)) {
+          _remoteMissAt[key] = DateTime.now();
+        } else {
+          _missing.set(key, true);
+        }
       } else {
         _decodedBytes.set(key, result);
+        _remoteMissAt.remove(key);
       }
       return result;
     } finally {

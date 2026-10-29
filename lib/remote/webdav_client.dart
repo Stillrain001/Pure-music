@@ -3,11 +3,20 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:pure_music/remote/id3_reader.dart';
 import 'package:pure_music/remote/remote_client.dart';
 import 'package:pure_music/remote/remote_source.dart';
 import 'package:xml/xml.dart';
 
 class WebDavClient implements RemoteClient {
+  /// 上次同步的结果，按 trackId 索引。文件没变过就不必再读一遍头部。
+  Map<String, RemoteTrack> _seedTracks = const <String, RemoteTrack>{};
+
+  @override
+  void seedExistingTracks(List<RemoteTrack> tracks) {
+    _seedTracks = {for (final track in tracks) track.trackId: track};
+  }
+
   static const _maxDirectories = 10000;
   static const _maxTracks = 200000;
   static const _audioExtensions = {
@@ -43,6 +52,7 @@ class WebDavClient implements RemoteClient {
     final headers = <String, String>{
       'Depth': '1',
       'Content-Type': 'application/xml; charset=utf-8',
+      'Accept': '*/*',
     };
     if (source.username.isNotEmpty || password.isNotEmpty) {
       final token = base64Encode(utf8.encode('${source.username}:$password'));
@@ -54,8 +64,11 @@ class WebDavClient implements RemoteClient {
         receiveTimeout: const Duration(seconds: 30),
         headers: headers,
         responseType: ResponseType.plain,
-        followRedirects: true,
-        validateStatus: (status) => status == 200 || status == 207,
+        // 跟随重定向时 Dio 会把 PROPFIND 降级成 GET，拿到的是网页而不是目录列表，
+        // 所以这里自己处理 3xx，保证方法不变。
+        followRedirects: false,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
   }
@@ -71,6 +84,7 @@ class WebDavClient implements RemoteClient {
       source.baseUrl.endsWith('/') ? source.baseUrl : '${source.baseUrl}/',
     );
     final tracks = <RemoteTrack>[];
+    final sizes = <String, int>{};
     final visited = <String>{};
     final pending = <Uri>[base];
     while (pending.isNotEmpty) {
@@ -80,14 +94,25 @@ class WebDavClient implements RemoteClient {
       if (visited.length > _maxDirectories) {
         throw StateError('WebDAV 远程目录数量超过限制');
       }
-      final response = await dio.request<String>(
-        key,
-        data: _propfindBody,
-        options: Options(method: 'PROPFIND'),
-      );
+      final response = await _propfind(dio, key);
+      final status = response.statusCode ?? 0;
+      if (status >= 300) {
+        final location = response.headers.value('location');
+        if (location == null || location.trim().isEmpty) {
+          throw StateError('WebDAV 地址发生重定向（$status）但缺少 Location');
+        }
+        final target = directory.resolve(location.trim());
+        if (!visited.contains(target.toString())) pending.add(target);
+        continue;
+      }
       final xml = response.data;
       if (xml == null || xml.trim().isEmpty) continue;
-      final document = XmlDocument.parse(xml);
+      final XmlDocument document;
+      try {
+        document = XmlDocument.parse(xml);
+      } catch (_) {
+        throw StateError('WebDAV 返回的不是目录列表，请检查地址是否正确（HTTP $status）');
+      }
       final responses = document.descendants
           .whereType<XmlElement>()
           .where((element) => element.name.local == 'response')
@@ -98,15 +123,7 @@ class WebDavClient implements RemoteClient {
         if (href == null || href.isEmpty) continue;
         final uri = directory.resolve(href);
         if (uri.toString() == key) continue;
-        final isCollection = entry.descendants
-            .whereType<XmlElement>()
-            .where((element) => element.name.local == 'resourcetype')
-            .any(
-              (element) => element.children.whereType<XmlElement>().any(
-                (child) => child.name.local == 'collection',
-              ),
-            );
-        if (isCollection) continue;
+        if (_isCollection(entry)) continue;
         if (_isCover(uri.path)) {
           coverUrl ??= uri.toString();
         }
@@ -117,15 +134,7 @@ class WebDavClient implements RemoteClient {
         final uri = directory.resolve(href);
         final normalized = uri.toString();
         if (normalized == key) continue;
-        final isCollection = entry.descendants
-            .whereType<XmlElement>()
-            .where((element) => element.name.local == 'resourcetype')
-            .any(
-              (element) => element.children.whereType<XmlElement>().any(
-                (child) => child.name.local == 'collection',
-              ),
-            );
-        if (isCollection) {
+        if (_isCollection(entry)) {
           if (!visited.contains(normalized)) pending.add(uri);
           continue;
         }
@@ -134,6 +143,7 @@ class WebDavClient implements RemoteClient {
           throw StateError('WebDAV 远程曲目数量超过限制');
         }
         final size = int.tryParse(_textOf(entry, 'getcontentlength') ?? '');
+        if (size != null) sizes[uri.toString()] = size;
         final modified = _parseHttpDate(_textOf(entry, 'getlastmodified'));
         tracks.add(
           _trackFromUri(
@@ -145,11 +155,14 @@ class WebDavClient implements RemoteClient {
           ),
         );
       }
+      // 目录遍历阶段不知道总数，只能给一个收敛的估计值；真正的线性进度
+      // 留给后面的标签读取（总数已知）。
       onProgress?.call(
-        (tracks.length / (tracks.length + 20)).clamp(0.0, 0.99),
+        (tracks.length / (tracks.length + 1000)).clamp(0.0, 0.2),
         '已发现 ${tracks.length} 首',
       );
     }
+    await _enrichTags(dio, tracks, sizes: sizes, onProgress: onProgress);
     tracks.sort((a, b) {
       final album = a.album.toLowerCase().compareTo(b.album.toLowerCase());
       if (album != 0) return album;
@@ -159,8 +172,163 @@ class WebDavClient implements RemoteClient {
       if (track != 0) return track;
       return a.title.toLowerCase().compareTo(b.title.toLowerCase());
     });
-    onProgress?.call(1, '已发现 ${tracks.length} 首');
+    onProgress?.call(0.88, '已读取 ${tracks.length} 首');
     return tracks;
+  }
+
+  /// 逐个文件用 Range 只取头部一小段，解 ID3 拿真实标题、艺术家、专辑和时长。
+  /// 目录列表本身不带任何标签，不补这一步就只能按文件名猜。
+  Future<void> _enrichTags(
+    Dio dio,
+    List<RemoteTrack> tracks, {
+    required Map<String, int> sizes,
+    RemoteSyncProgress? onProgress,
+  }) async {
+    const parallel = 8;
+    final total = tracks.length;
+    if (total == 0) return;
+    var done = 0;
+    var next = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= total) return;
+        final track = tracks[index];
+        final previous = _seedTracks[track.trackId];
+        if (previous != null &&
+            previous.modified > 0 &&
+            previous.modified == track.modified &&
+            previous.duration > 0) {
+          // 修改时间没变、上次也解析出过时长：直接沿用，省掉一次 Range 请求。
+          tracks[index] = previous;
+          done++;
+          if (onProgress != null && (done % 20 == 0 || done == total)) {
+            onProgress(
+              (0.2 + 0.68 * done / total).clamp(0.0, 0.88),
+              '读取标签 $done/$total',
+            );
+          }
+          continue;
+        }
+        try {
+          final response = await dio.get<List<int>>(
+            track.trackId,
+            options: Options(
+              responseType: ResponseType.bytes,
+              headers: {'Range': 'bytes=0-${remoteTagProbeBytes - 1}'},
+            ),
+          );
+          final data = response.data;
+          if (data != null && data.isNotEmpty) {
+            var tags = parseMp3Tags(
+              Uint8List.fromList(data),
+              fileSize: sizes[track.trackId],
+            );
+            // 内嵌封面会把音频帧挤出探测窗口：标签拿到了但时长是 0，
+            // 这时按 ID3 里记录的偏移再取 16KB，只补时长和码率。
+            if (tags != null &&
+                tags.duration == 0 &&
+                tags.audioStart >= data.length) {
+              final start = tags.audioStart;
+              final tail = await dio.get<List<int>>(
+                track.trackId,
+                options: Options(
+                  responseType: ResponseType.bytes,
+                  headers: {'Range': 'bytes=$start-${start + 16383}'},
+                ),
+              );
+              final tailData = tail.data;
+              if (tailData != null && tailData.isNotEmpty) {
+                final info = parseMp3AudioInfo(
+                  Uint8List.fromList(tailData),
+                  fileSize: sizes[track.trackId],
+                );
+                if (info != null) {
+                  tags = RemoteAudioTags(
+                    title: tags.title,
+                    artist: tags.artist,
+                    album: tags.album,
+                    albumArtist: tags.albumArtist,
+                    duration: info.duration,
+                    bitrate: info.bitrate,
+                    sampleRate: info.sampleRate,
+                    audioStart: tags.audioStart,
+                  );
+                }
+              }
+            }
+            if (tags != null) {
+              tracks[index] = track.copyWith(
+                title: tags.title,
+                artist: tags.artist,
+                album: tags.album,
+                albumArtist: tags.albumArtist,
+                duration: tags.duration > 0 ? tags.duration : null,
+                bitrate: tags.bitrate,
+                sampleRate: tags.sampleRate,
+                by: tags.artist,
+              );
+            }
+          }
+        } catch (_) {
+          // 单个文件读失败（权限、格式怪）不该拖垮整次同步。
+        }
+        done++;
+        if (onProgress != null && (done % 20 == 0 || done == total)) {
+          onProgress(
+            (0.2 + 0.68 * done / total).clamp(0.0, 0.88),
+            '读取标签 $done/$total',
+          );
+        }
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < parallel && i < total; i++) worker(),
+    ]);
+  }
+
+  /// 把 Dio 的裸异常翻译成能指导用户改配置的提示。
+  /// 最常见的错法是拿管理界面的地址当 WebDAV 地址：那种反向代理通常直接
+  /// 屏蔽 PROPFIND，任何路径都回 405，用户看到的是一串英文 DioException。
+  Future<Response<String>> _propfind(Dio dio, String url) async {
+    try {
+      return await dio.request<String>(
+        url,
+        data: _propfindBody,
+        options: Options(method: 'PROPFIND'),
+      );
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status == 405) {
+        throw StateError(
+          '服务器不接受 WebDAV 的 PROPFIND 请求（HTTP 405）。'
+          '这个地址多半是管理界面而不是 WebDAV 服务，'
+          '请换成 NAS 提供的 WebDAV 地址和端口',
+        );
+      }
+      if (status == 401 || status == 403) {
+        throw StateError('WebDAV 认证失败（HTTP $status），请检查用户名和密码');
+      }
+      if (status == 404) {
+        throw StateError(
+          'WebDAV 路径不存在（HTTP 404），请检查地址里的目录前缀是否完整',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  bool _isCollection(XmlElement entry) {
+    return entry.descendants
+        .whereType<XmlElement>()
+        .where((element) => element.name.local == 'resourcetype')
+        .any(
+          (element) => element.children.whereType<XmlElement>().any(
+            (child) => child.name.local == 'collection',
+          ),
+        );
   }
 
   bool _isAudio(String path) {
@@ -191,31 +359,35 @@ class WebDavClient implements RemoteClient {
     int? modified,
     String? coverId,
   }) {
+    // pathSegments 已经是解码后的结果，再解一次会让带 % 的文件名抛异常。
     final segments = uri.pathSegments
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
-    final fileName = segments.isEmpty
-        ? uri.path
-        : Uri.decodeComponent(segments.last);
-    final album = segments.length >= 2
-        ? Uri.decodeComponent(segments[segments.length - 2])
-        : '未知专辑';
-    var title = fileName;
-    final dot = title.lastIndexOf('.');
-    if (dot > 0) title = title.substring(0, dot);
+    final fileName = segments.isEmpty ? uri.path : segments.last;
+    final album = segments.length >= 2 ? segments[segments.length - 2] : '';
+    var name = fileName;
+    final dot = name.lastIndexOf('.');
+    if (dot > 0) name = name.substring(0, dot);
     var track = 0;
-    final leading = RegExp(r'^(\d{1,3})[\s._-]+').firstMatch(title);
+    final leading = RegExp(r'^(\d{1,3})\s*[-._．、]\s+').firstMatch(name);
     if (leading != null) {
       track = int.tryParse(leading.group(1)!) ?? 0;
-      title = title.substring(leading.end).trim();
+      name = name.substring(leading.end).trim();
     }
+    // QQ 音乐这类下载器遇到重名会追加「 (2)」去重后缀，它不属于歌曲信息。
+    name = name
+        .replaceFirst(RegExp(r'\s*\((?:[1-9]|[1-9]\d)\)\s*$'), '')
+        .trim();
+    // 这类曲库统一是「歌名 - 歌手」，所以取最后一个分隔符：
+    // 歌名自己带连字符时（Time-Bomb）也不会被拆错。
+    var title = name;
     var artist = '未知艺术家';
-    final separator = title.indexOf(' - ');
+    final separator = name.lastIndexOf(' - ');
     if (separator > 0) {
-      final left = title.substring(0, separator).trim();
-      final right = title.substring(separator + 3).trim();
-      if (left.isNotEmpty) artist = left;
-      if (right.isNotEmpty) title = right;
+      final left = name.substring(0, separator).trim();
+      final right = name.substring(separator + 3).trim();
+      if (left.isNotEmpty) title = left;
+      if (right.isNotEmpty) artist = right;
     }
     return RemoteTrack(
       sourceId: source.id,
@@ -257,6 +429,29 @@ class WebDavClient implements RemoteClient {
     return '$url\r\nAuthorization: Basic $token\r\n';
   }
 
+  /// 只取文件头部若干字节，用于解析内嵌标签 / 封面 / 歌词。
+  Future<Uint8List?> readHead(
+    RemoteSource source,
+    String password,
+    String url,
+    int length,
+  ) async {
+    try {
+      final response = await _dio(source, password).get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Range': 'bytes=0-${length - 1}'},
+        ),
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) return null;
+      return Uint8List.fromList(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<Uint8List?> cover(
     RemoteSource source,
@@ -269,7 +464,10 @@ class WebDavClient implements RemoteClient {
       final dio = _dio(source, password);
       final response = await dio.get<List<int>>(
         coverId,
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          followRedirects: true,
+        ),
       );
       final data = response.data;
       if (data == null || data.isEmpty) return null;

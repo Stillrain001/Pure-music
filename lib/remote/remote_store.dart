@@ -5,7 +5,14 @@ import 'package:sqlite3/sqlite3.dart';
 class RemoteStore {
   const RemoteStore();
 
+  /// 一个事务里塞几千行会把整张表的重做日志顶在内存里，
+  /// 崩溃时还可能连带写坏库文件，所以按批提交。
+  static const _chunkSize = 400;
+
+  static bool _schemaReady = false;
+
   Future<void> _ensureSchema() async {
+    if (_schemaReady) return;
     final db = await AppDb.instance.db();
     db.execute('''
 CREATE TABLE IF NOT EXISTS remote_sources (
@@ -53,6 +60,7 @@ CREATE TABLE IF NOT EXISTS remote_play_history (
 CREATE INDEX IF NOT EXISTS idx_remote_play_history_path
   ON remote_play_history(path);
 ''');
+    _schemaReady = true;
   }
 
   Future<List<RemoteSource>> readSources() async {
@@ -176,47 +184,68 @@ ON CONFLICT(id) DO UPDATE SET
   Future<void> replaceTracks(
     String sourceId,
     List<RemoteTrack> tracks,
-    String Function(RemoteTrack track) pathOf,
-  ) async {
+    String Function(RemoteTrack track) pathOf, {
+    void Function(int done, int total)? onProgress,
+  }) async {
     await _ensureSchema();
     final db = await AppDb.instance.db();
-    db.execute('BEGIN');
-    try {
-      db.execute('DELETE FROM remote_tracks WHERE source_id = ?', [sourceId]);
-      final statement = db.prepare('''
+    final statement = db.prepare('''
 INSERT OR REPLACE INTO remote_tracks
   (path, source_id, track_id, title, artist, album, album_artist, track, disc,
    duration, bitrate, sample_rate, modified, created, by, cover_id)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ''');
-      try {
-        for (final track in tracks) {
-          statement.execute([
-            pathOf(track),
-            track.sourceId,
-            track.trackId,
-            track.title,
-            track.artist,
-            track.album,
-            track.albumArtist,
-            track.track,
-            track.disc,
-            track.duration,
-            track.bitrate,
-            track.sampleRate,
-            track.modified,
-            track.created,
-            track.by,
-            track.coverId,
-          ]);
-        }
-      } finally {
-        statement.dispose();
+    final total = tracks.length;
+    var inTransaction = false;
+    var pending = 0;
+    var done = 0;
+    try {
+      db.execute('BEGIN');
+      inTransaction = true;
+      db.execute('DELETE FROM remote_tracks WHERE source_id = ?', [sourceId]);
+      for (final track in tracks) {
+        statement.execute([
+          pathOf(track),
+          track.sourceId,
+          track.trackId,
+          track.title,
+          track.artist,
+          track.album,
+          track.albumArtist,
+          track.track,
+          track.disc,
+          track.duration,
+          track.bitrate,
+          track.sampleRate,
+          track.modified,
+          track.created,
+          track.by,
+          track.coverId,
+        ]);
+        pending++;
+        if (pending < _chunkSize) continue;
+        db.execute('COMMIT');
+        inTransaction = false;
+        done += pending;
+        pending = 0;
+        onProgress?.call(done, total);
+        // 让出事件循环，避免大库同步时界面完全卡死。
+        await Future<void>.delayed(Duration.zero);
+        db.execute('BEGIN');
+        inTransaction = true;
       }
       db.execute('COMMIT');
+      inTransaction = false;
+      onProgress?.call(total, total);
     } catch (_) {
-      db.execute('ROLLBACK');
+      if (inTransaction) {
+        try {
+          db.execute('ROLLBACK');
+        } catch (_) {}
+      }
       rethrow;
+    } finally {
+      statement.dispose();
     }
   }
 
