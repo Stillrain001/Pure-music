@@ -914,6 +914,24 @@ class PlaybackService extends ChangeNotifier {
     _updateSmtcPosition();
   }
 
+  /// 远程曲目没有真实文件，SMTC 从路径抠内嵌封面只会抠空、把图清掉。
+  /// 取到封面字节后直接喂给原生侧；晚到的字节由原生按曲目路径判废。
+  void _feedSmtcThumbnail(Audio audio) {
+    if (!RemoteLibrary.isRemotePath(audio.path)) return;
+    unawaited(() async {
+      try {
+        final bytes = await RemoteLibrary.instance.coverBytes(audio.path, 256);
+        if (bytes == null) return;
+        await _smtc.queueThumbnailBytes(path: audio.path, bytes: bytes);
+      } catch (error, stackTrace) {
+        log.smtc.warn(
+          'legacy',
+          '[smtc] thumbnail feed failed: $error\n$stackTrace',
+        );
+      }
+    }());
+  }
+
   Future<void> _clearSmtcDisplay() async {
     final revision = ++_smtcDisplayRevision;
     await _smtc.clearDisplay();
@@ -927,6 +945,7 @@ class PlaybackService extends ChangeNotifier {
       duration: audio.duration * 1000,
       path: audio.path,
     );
+    _feedSmtcThumbnail(audio);
     await _smtc.updateState(
       playerState == PlayerState.playing ? SMTCState.playing : SMTCState.paused,
     );
@@ -1307,6 +1326,7 @@ class PlaybackService extends ChangeNotifier {
         path: audio.path,
       ),
     );
+    _feedSmtcThumbnail(audio);
     unawaited(
       _smtc.updateState(
         state == PlayerState.playing ? SMTCState.playing : SMTCState.paused,
@@ -1413,6 +1433,7 @@ class PlaybackService extends ChangeNotifier {
         path: audio.path,
       ),
     );
+    _feedSmtcThumbnail(audio);
   }
 
   bool _isCurrentSongChangeTask(int token, Audio audio) {

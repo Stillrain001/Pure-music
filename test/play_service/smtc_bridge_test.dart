@@ -101,6 +101,14 @@ class _FakeSmtcBackend implements SmtcBackend {
   }
 
   @override
+  Future<void> queueThumbnailBytes({
+    required String path,
+    required List<int> bytes,
+  }) async {
+    operations.add('thumbnail');
+  }
+
+  @override
   Future<void> refreshDisplay() async {
     operations.add('refresh');
   }
