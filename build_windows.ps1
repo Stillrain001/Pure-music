@@ -165,6 +165,7 @@ function Optimize-FlutterIconFonts([string]$appDir) {
                     } catch {
                         # 删除失败（文件被占用、被安全策略拦截等）只跳过瘦身，
                         # 不影响打包产物的正确性。
+                        Write-Verbose "跳过字体瘦身：$($_.Exception.Message)"
                     }
                 }
             }
@@ -249,6 +250,7 @@ function Remove-StagingContainer() {
             Remove-Item -LiteralPath $script:stagingContainer -Recurse -Force -ErrorAction SilentlyContinue
         } catch {
             # 清理被安全策略拦住时留下暂存目录也不影响产物。
+            Write-Verbose "暂存目录清理跳过：$($_.Exception.Message)"
         }
         $script:stagingContainer = $null
     }
@@ -688,7 +690,9 @@ function New-InstallerPackage([string]$version, [bool]$buildFirst) {
                             try {
                                 $backup = '{0}.old-{1}' -f (Split-Path $path -Leaf), (Get-Date -Format 'yyyyMMddHHmmss')
                                 Rename-Item -LiteralPath $path -NewName $backup
-                            } catch {}
+                            } catch {
+                                Write-Verbose "旧产物改名失败：$($_.Exception.Message)"
+                            }
                         }
                     }
                 }
