@@ -53,7 +53,9 @@ RemoteAudioTags? parseMp3Tags(Uint8List bytes, {int? fileSize}) {
 
   audioStart = _id3EndOffset(bytes);
   for (final frame in _id3Frames(bytes)) {
-    if (frame.id.length != 4 || frame.id[0] != 'T') continue;
+    // v2.2 的帧 ID 是 3 字符（TT2/TP1/…），v2.3/2.4 是 4 字符（TIT2/…），
+    // 两种都要认——下面的 switch 里本来就备好了两套 case。
+    if (frame.id.isEmpty || frame.id[0] != 'T') continue;
     final text = _decodeText(frame.data);
     if (text.isEmpty) continue;
     switch (frame.id) {
@@ -122,18 +124,37 @@ int _id3EndOffset(Uint8List bytes) {
 }
 
 /// 逐帧遍历 ID3v2。缓冲被截断时会在最后一帧处停下。
+/// v2.2 是 3 字符帧 ID + 6 字节帧头；v2.3/2.4 是 4 字符帧 ID + 10 字节帧头。
 Iterable<({String id, Uint8List data})> _id3Frames(Uint8List bytes) sync* {
   if (bytes.length < 10) return;
   if (bytes[0] != 0x49 || bytes[1] != 0x44 || bytes[2] != 0x33) return;
   final major = bytes[3];
   final flags = bytes[5];
+  // v2.2 的 0x40 表示整帧压缩，解不了，直接放弃。
+  if (major <= 2 && (flags & 0x40) != 0) return;
   final trueEnd = _id3EndOffset(bytes);
   var offset = 10;
   // v2.3 的扩展头是 4 字节长度 + 长度本身；v2.4 是 syncsafe 长度且已含自身。
-  if ((flags & 0x40) != 0 && offset + 4 <= bytes.length) {
+  // v2.2 没有扩展头。
+  if (major > 2 && (flags & 0x40) != 0 && offset + 4 <= bytes.length) {
     offset += major >= 4 ? _syncSafe(bytes, offset) : 4 + _u32(bytes, offset);
   }
   final end = trueEnd < bytes.length ? trueEnd : bytes.length;
+  if (major <= 2) {
+    while (offset + 6 <= end) {
+      final id = String.fromCharCodes(bytes.sublist(offset, offset + 3));
+      if (id.isEmpty || id.codeUnitAt(0) == 0) return;
+      final size =
+          (bytes[offset + 3] << 16) | (bytes[offset + 4] << 8) | bytes[offset + 5];
+      if (size <= 0 || offset + 6 + size > end) return;
+      yield (
+        id: id,
+        data: Uint8List.sublistView(bytes, offset + 6, offset + 6 + size),
+      );
+      offset += 6 + size;
+    }
+    return;
+  }
   while (offset + 10 <= end) {
     final id = String.fromCharCodes(bytes.sublist(offset, offset + 4));
     if (id.isEmpty || id.codeUnitAt(0) == 0) return;
