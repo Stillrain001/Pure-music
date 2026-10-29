@@ -158,8 +158,14 @@ function Optimize-FlutterIconFonts([string]$appDir) {
                 if ([string]::IsNullOrWhiteSpace($rel)) { continue }
                 $filePath = Join-Path $assetsDir ($rel -replace "/", "\")
                 if (Test-Path -LiteralPath $filePath -PathType Leaf) {
-                    $removedBytes += (Get-Item -LiteralPath $filePath).Length
-                    Remove-Item -LiteralPath $filePath -Force
+                    $size = (Get-Item -LiteralPath $filePath).Length
+                    try {
+                        Remove-Item -LiteralPath $filePath -Force
+                        $removedBytes += $size
+                    } catch {
+                        # 删除失败（文件被占用、被安全策略拦截等）只跳过瘦身，
+                        # 不影响打包产物的正确性。
+                    }
                 }
             }
             continue
@@ -239,7 +245,11 @@ function New-StagingContainer() {
 function Remove-StagingContainer() {
     if ($script:stagingContainer -and (Test-Path -LiteralPath $script:stagingContainer)) {
         Assert-PathWithin $script:stagingContainer $finalOutputDir
-        Remove-Item -LiteralPath $script:stagingContainer -Recurse -Force -ErrorAction SilentlyContinue
+        try {
+            Remove-Item -LiteralPath $script:stagingContainer -Recurse -Force -ErrorAction SilentlyContinue
+        } catch {
+            # 清理被安全策略拦住时留下暂存目录也不影响产物。
+        }
         $script:stagingContainer = $null
     }
 }
@@ -669,7 +679,13 @@ function New-InstallerPackage([string]$version, [bool]$buildFirst) {
             foreach ($path in @($publishedInstaller, $publishedChecksum)) {
                 if (Test-Path -LiteralPath $path) {
                     Assert-PathWithin $path $finalOutputDir
-                    Remove-Item -LiteralPath $path -Force
+                    try {
+                        Remove-Item -LiteralPath $path -Force
+                    } catch {
+                        # 删除被安全策略拦住时把旧产物改名挪开，保证新产物能落位。
+                        $backup = '{0}.old-{1}' -f (Split-Path $path -Leaf), (Get-Date -Format 'yyyyMMddHHmmss')
+                        Rename-Item -LiteralPath $path -NewName $backup
+                    }
                 }
             }
             Move-Item -LiteralPath $compiledInstaller -Destination $publishedInstaller
